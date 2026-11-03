@@ -212,6 +212,14 @@ a { color: var(--gold-strong); }
   padding: 12px 16px max(14px, env(safe-area-inset-bottom));
   background: linear-gradient(0deg, rgba(6, 12, 22, 0.85), transparent);
 }
+.interact-hint {
+  position: absolute; z-index: 12; left: 50%; transform: translate(-50%, 8px); bottom: 118px;
+  font-size: 0.9rem; font-weight: 700; color: var(--gold-strong);
+  background: rgba(10, 20, 32, 0.82); border: 1px solid rgba(216, 180, 90, 0.5);
+  padding: 8px 20px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  pointer-events: none; letter-spacing: 0.02em; backdrop-filter: blur(6px);
+}
+
 .move-hint {
   font-size: 0.7rem; color: var(--text-dim);
   background: rgba(10, 20, 32, 0.55); border-radius: 999px;

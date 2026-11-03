@@ -3,12 +3,38 @@
  * 모든 사용자 생성 콘텐츠는 escapeHtml을 거쳐 렌더링한다 (XSS 방지).
  */
 
+/** 공식 소스 ‘순복음소식’ 목록을 외부 링크로 보여준다 (본문/영상 재배포 없음) */
+async function newsHtml() {
+  const data = await fetchJson('/api/news');
+  const items = data.items ?? [];
+  const fetchNote = data.fetchedAt
+    ? `마지막 갱신 ${new Date(data.fetchedAt).toLocaleString('ko-KR')}`
+    : '서버에서 소식을 불러오지 못했습니다.';
+  return `
+    <div class="panel-section">
+      <div class="panel-section__title">공식 소식 — 순복음소식</div>
+      <p class="muted">여의도순복음교회 공식 FGTV/순복음소식에서 제공되는 최신 소식입니다. 본문을 재배포하지 않고 공식 페이지로 연결합니다.</p>
+      <a class="btn btn--ghost btn--sm" href="${escapeHtml(data.sourceUrl)}" target="_blank" rel="noopener">공식 페이지 바로가기 ↗</a>
+    </div>
+    <div id="newsList" style="display:grid; gap:10px">
+      ${items.slice(0, 12).map((it) => `
+        <div class="card post-card">
+          <div class="post-card__meta"><span class="chip">소식</span><span>${escapeHtml(it.date)}</span></div>
+          <h3>${escapeHtml(it.title)}</h3>
+          <a class="btn btn--ghost btn--sm" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">영상 보기 ↗</a>
+        </div>`).join('') || '<p class="muted">표시할 소식을 가져오지 못했습니다. 공식 페이지를 확인해 주세요.</p>'}
+    </div>
+    <p class="muted" style="font-size:0.72rem">${escapeHtml(fetchNote)}</p>`;
+}
+function bindNews() {}
+
 export const PANEL_TITLES = {
   worship: '📺 예배 생중계',
   verse: '📖 말씀 묵상',
   prayer: '🕯️ 기도의 자리',
   community: '💬 나눔과 간증',
   info: 'ℹ️ 교회 안내',
+  news: '📋 공식 소식',
 };
 
 export function escapeHtml(s) {
@@ -304,6 +330,7 @@ const RENDERERS = {
   prayer: { html: prayerHtml, bind: bindPrayer },
   community: { html: communityHtml, bind: bindCommunity },
   info: { html: async () => infoHtml(), bind: bindInfo },
+  news: { html: newsHtml, bind: bindNews },
 };
 
 /**

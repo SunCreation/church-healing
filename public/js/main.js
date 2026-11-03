@@ -43,7 +43,9 @@ AVATAR_COLORS.forEach((hex) => {
 let three = null;          // { renderer, scene, camera, clock, sanctuary, player }
 let ws = null;
 let myId = null;
-const remotePlayers = new Map(); // id → { group, targetX, targetZ, targetRot, moving }
+let frontNews = { items: [], fetchedAt: 0 };
+let mySeat = null;
+const remotePlayers = new Map(); // id → { group, targetX, targetZ, targetRot, targetY, seat, moving }
 const candles = [];              // { flame }
 let crossLight = null;
 let playerName = '성도';
@@ -119,6 +121,8 @@ function handleServerMessage(msg) {
       const p = remotePlayers.get(msg.id);
       if (!p) return;
       p.targetX = msg.x; p.targetZ = msg.z; p.targetRot = msg.rot; p.moving = msg.moving;
+      p.targetY = Number.isFinite(msg.y) ? msg.y : 0;
+      p.seat = Number.isInteger(msg.seat) ? msg.seat : null;
       p.group.userData.setMoving(msg.moving);
       break;
     }
@@ -142,10 +146,16 @@ function handleServerMessage(msg) {
 function upsertRemotePlayer(p) {
   if (remotePlayers.has(p.id)) return;
   const group = createAvatar({ color: p.color, name: p.name });
-  group.position.set(p.x, 0, p.z);
+  group.position.set(p.x, Number.isFinite(p.y) ? p.y : 0, p.z);
   group.rotation.y = p.rot ?? 0;
   three?.scene.add(group);
-  remotePlayers.set(p.id, { group, targetX: p.x, targetZ: p.z, targetRot: p.rot ?? 0, moving: false });
+  remotePlayers.set(p.id, {
+    group,
+    targetX: p.x, targetZ: p.z, targetRot: p.rot ?? 0,
+    targetY: Number.isFinite(p.y) ? p.y : 0,
+    seat: Number.isInteger(p.seat) ? p.seat : null,
+    moving: false,
+  });
 }
 
 function removeRemotePlayer(id) {
@@ -209,6 +219,88 @@ function seedCandles(n) {
   }
 }
 
+/* ============ 앞마당 게시판 소식 ============ */
+const interactHint = $('#interactHint');
+function setHint(text) {
+  if (!text) {
+    interactHint.classList.add('hidden');
+    return;
+  }
+  interactHint.textContent = text;
+  interactHint.classList.remove('hidden');
+}
+async function loadFrontNews(sanctuary) {
+  try {
+    const res = await fetch('/api/news');
+    if (!res.ok) throw new Error(`소식 ${res.status}`);
+    const data = await res.json();
+    frontNews = data;
+    sanctuary.bulletin?.draw(data.items ?? []);
+  } catch (e) {
+    console.warn('공식 소식 갱신 실패:', e.message);
+  }
+}
+function dist2d(a, b) {
+  return Math.hypot(a.x - b.x, a.z - b.z);
+}
+function findNearestSeat(position) {
+  if (!three) return null;
+  let best = null, bestDist = Infinity, blockedBy = null;
+  for (const seat of three.sanctuary.seats) {
+    const d = dist2d(position, seat);
+    if (d > 2.1) continue;
+    const occupied = (mySeat === seat.id) || [...remotePlayers.values()].some((p) => p.seat === seat.id);
+    if (occupied) { if (!blockedBy || d < blockedBy.d) blockedBy = { seat, d }; continue; }
+    if (d < bestDist) { bestDist = d; best = seat; }
+  }
+  return { seat: best, blockedBy };
+}
+function canStandUp() {
+  return mySeat !== null;
+}
+function interact() {
+  if (canStandUp()) return standUp();
+  if (isNearBulletin(three?.player?.position)) {
+    keys.clear();
+    openPanel('news');
+    return;
+  }
+  const nearest = findNearestSeat(three.player.position);
+  if (!nearest?.seat) return;
+  const seat = nearest.seat;
+  mySeat = seat.id;
+  three.player.position.set(seat.x, 0.28, seat.z);
+  three.player.rotation.y = Math.PI;
+  toast('하나님의 은혜를 받으세요 🙏');
+  sendPositionNow();
+}
+function standUp() {
+  const side = Math.sign(three?.player?.position.x) || 1;
+  mySeat = null;
+  three.player.position.y = 0;
+  three.player.position.x = side * 2.5;
+  three.player.rotation.y = Math.PI;
+  toast('자리에서 일어났습니다.');
+  sendPositionNow();
+}
+function isNearBulletin(pos) {
+  if (!three || !pos) return false;
+  const b = three.sanctuary.bulletinArea;
+  return dist2d(pos, b) <= b.radius;
+}
+function sendPositionNow() {
+  if (!ws || ws.readyState !== WebSocket.OPEN || !three) return;
+  ws.send(JSON.stringify({
+    t: 'pos',
+    x: round2(three.player.position.x),
+    z: round2(three.player.position.z),
+    rot: round2(three.player.rotation.y),
+    moving: false,
+    y: round2(three.player.position.y),
+    seat: mySeat,
+  }));
+}
+
 /* ============ 3D 초기화 ============ */
 const canvas = $('#scene');
 const keys = new Set();
@@ -237,6 +329,8 @@ function initThree() {
   scene.add(player);
 
   crossLight = scene.children.find((c) => c.isPointLight && c.color?.getHex() === 0xffd98a) ?? null;
+
+  loadFrontNews(sanctuary);
 
   three = { renderer, scene, camera, clock: new THREE.Clock(), sanctuary, player };
   addEventListener('resize', onResize);
@@ -278,10 +372,11 @@ addEventListener('keydown', (e) => {
     return;
   }
   keys.add(e.code);
-  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF'].includes(e.code)) {
     e.preventDefault();
   }
   if (e.code === 'Enter') { e.preventDefault(); $('#chatInput').focus(); }
+  if (e.code === 'KeyF') interact();
   if (e.code === 'Escape') closePanel();
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
@@ -327,14 +422,16 @@ function tick() {
   const t = three.clock.elapsedTime;
   const { camera, renderer, scene, player, sanctuary } = three;
 
-  /* 이동 입력 (카메라 기준) */
+  /* 이동 입력 (카메라 기준; 앉아 있으면 이동 불가) */
   const forward = new THREE.Vector3(-Math.sin(orbitYaw), 0, -Math.cos(orbitYaw)).normalize();
   const right = new THREE.Vector3().crossVectors(forward, UP).normalize();
   moveVec.set(0, 0, 0);
-  if (keys.has('KeyW') || keys.has('ArrowUp')) moveVec.add(forward);
-  if (keys.has('KeyS') || keys.has('ArrowDown')) moveVec.sub(forward);
-  if (keys.has('KeyD') || keys.has('ArrowRight')) moveVec.add(right);
-  if (keys.has('KeyA') || keys.has('ArrowLeft')) moveVec.sub(right);
+  if (mySeat === null) {
+    if (keys.has('KeyW') || keys.has('ArrowUp')) moveVec.add(forward);
+    if (keys.has('KeyS') || keys.has('ArrowDown')) moveVec.sub(forward);
+    if (keys.has('KeyD') || keys.has('ArrowRight')) moveVec.add(right);
+    if (keys.has('KeyA') || keys.has('ArrowLeft')) moveVec.sub(right);
+  }
 
   const moving = moveVec.lengthSq() > 0;
   if (moving) {
@@ -343,9 +440,10 @@ function tick() {
     player.position.x += moveVec.x * speed * dt;
     player.position.z += moveVec.z * speed * dt;
     resolveCollisions(player.position);
-    const targetRot = Math.atan2(moveVec.x, moveVec.z);
-    player.rotation.y = lerpAngle(player.rotation.y, targetRot, 1 - Math.exp(-12 * dt));
   }
+  // 아바타 전체 몸이 카메라가 바라보는 방향을 따라간다 (각 유저의 시야를 다른 사람이 볼 수 있음)
+  const targetRot = orbitYaw + Math.PI;
+  player.rotation.y = lerpAngle(player.rotation.y, targetRot, 1 - Math.exp(-12 * dt));
   player.userData.setMoving(moving);
   player.userData.tick(t);
 
@@ -353,7 +451,7 @@ function tick() {
   posSendTimer += dt;
   if (posSendTimer > 0.085 && ws?.readyState === WebSocket.OPEN) {
     posSendTimer = 0;
-    ws.send(JSON.stringify({ t: 'pos', x: round2(player.position.x), z: round2(player.position.z), rot: round2(player.rotation.y), moving }));
+    ws.send(JSON.stringify({ t: 'pos', x: round2(player.position.x), z: round2(player.position.z), rot: round2(player.rotation.y), moving, y: round2(player.position.y), seat: mySeat }));
   }
 
   /* 카메라 추종 */
@@ -364,7 +462,7 @@ function tick() {
   // 카메라가 벽/천장 밖으로 나가지 않도록 실내에 가둠
   const { dims } = sanctuary;
   camera.position.x = THREE.MathUtils.clamp(camera.position.x, -dims.W / 2 + 0.4, dims.W / 2 - 0.4);
-  camera.position.z = THREE.MathUtils.clamp(camera.position.z, -dims.D / 2 + 0.4, dims.D / 2 - 0.4);
+  camera.position.z = THREE.MathUtils.clamp(camera.position.z, -dims.D / 2 + 0.4, dims.D / 2 + (dims.FRONT ?? 0) + 4.5);
   camera.position.y = Math.min(camera.position.y, dims.H - 0.4);
   camera.lookAt(player.position.x, player.position.y + 2.35, player.position.z);
 
@@ -373,7 +471,9 @@ function tick() {
     const k = 1 - Math.exp(-10 * dt);
     p.group.position.x += (p.targetX - p.group.position.x) * k;
     p.group.position.z += (p.targetZ - p.group.position.z) * k;
+    p.group.position.y += (p.targetY - p.group.position.y) * k;
     p.group.rotation.y = lerpAngle(p.group.rotation.y, p.targetRot, k);
+    p.group.userData.setMoving(p.moving && p.seat == null);
     p.group.userData.tick(t);
   }
 
@@ -386,7 +486,31 @@ function tick() {
   /* 십자가 빛 맥동 */
   if (crossLight) crossLight.intensity = 55 + Math.sin(t * 0.9) * 14;
 
+  /* 상호작용 힌트 */
+  updateInteractHint(player.position);
+
   renderer.render(scene, camera);
+}
+function updateInteractHint(pos) {
+  if (!three || !pos) return;
+  if (mySeat !== null) {
+    setHint('F · 자리에서 일어서기');
+    return;
+  }
+  if (isNearBulletin(pos)) {
+    setHint('F · 여의도순복음교회 공식 소식 보기');
+    return;
+  }
+  const nearest = findNearestSeat(pos);
+  if (nearest?.seat) {
+    setHint('F · 이 자리에 앉기');
+    return;
+  }
+  if (nearest?.blockedBy) {
+    setHint('자리가 찼습니다');
+    return;
+  }
+  setHint(null);
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -467,5 +591,5 @@ entryForm.addEventListener('submit', (e) => {
   }
   connectWS();
   tick();
-  toast(`${playerName} 님, 빛의 성전에 오신 것을 환영합니다 ✝`);
+  toast(`${playerName} 님, 빛의 성전에 오신 것을 환영합니다 ✝ · 입구로 나가면 공식 소식 게시판이 있습니다`);
 });

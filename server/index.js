@@ -24,6 +24,7 @@ if (!process.env.DATABASE_URL) {
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const { createStore, uid } = require('./store');
+const { getNews } = require('./news');
 
 const PORT = process.env.PORT || 8787;
 const ROOT = path.join(__dirname, '..');
@@ -133,6 +134,8 @@ app.get('/api/verse', (_req, res) => {
 
 app.get('/api/schedule', (_req, res) => res.json({ worship: WORSHIP_SCHEDULE, official: OFFICIAL_LINKS }));
 
+app.get('/api/news', asyncHandle(async (_req, res) => res.json(await getNews())));
+
 app.get('/api/posts', limitApi, asyncHandle(async (req, res) => {
   const category = clampStr(req.query.category, 20);
   res.json(await store.listPosts(category));
@@ -201,7 +204,7 @@ app.post('/api/candle', limitCandle, asyncHandle(async (req, res) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
 
-/** @type {Map<string, {id:string,name:string,color:string,x:number,z:number,rot:number,moving:boolean}>} */
+/** @type {Map<string, {id:string,name:string,color:string,x:number,z:number,rot:number,moving:boolean,y:number,seat:number|null}>} */
 const players = new Map();
 
 function send(ws, payload) {
@@ -235,7 +238,7 @@ wss.on('connection', (ws) => {
     if (msg.t === 'join') {
       const name = clampStr(msg.name, 20) || '성도';
       const color = /^#[0-9a-fA-F]{6}$/.test(msg.color) ? msg.color : '#7fb3ff';
-      const player = { id: uid('usr'), name, color, x: SPAWN.x, z: SPAWN.z, rot: Math.PI, moving: false };
+      const player = { id: uid('usr'), name, color, x: SPAWN.x, z: SPAWN.z, rot: Math.PI, moving: false, y: 0, seat: null };
       joined = player;
       ws.meta = { id: player.id };
       players.set(player.id, player);
@@ -255,10 +258,12 @@ wss.on('connection', (ws) => {
       const p = players.get(joined.id);
       if (!p) return;
       p.x = Number.isFinite(msg.x) ? Math.max(-27, Math.min(27, msg.x)) : p.x;
-      p.z = Number.isFinite(msg.z) ? Math.max(-17, Math.min(17, msg.z)) : p.z;
+      p.z = Number.isFinite(msg.z) ? Math.max(-17, Math.min(26.8, msg.z)) : p.z;
       p.rot = Number.isFinite(msg.rot) ? msg.rot : p.rot;
       p.moving = Boolean(msg.moving);
-      broadcast({ t: 'pos', id: p.id, x: p.x, z: p.z, rot: p.rot, moving: p.moving }, p.id);
+      p.y = Number.isFinite(msg.y) ? Math.max(0, Math.min(2, msg.y)) : p.y;
+      p.seat = Number.isInteger(msg.seat) ? Math.max(0, Math.min(143, msg.seat)) : (msg.seat === null ? null : p.seat);
+      broadcast({ t: 'pos', id: p.id, x: p.x, z: p.z, rot: p.rot, moving: p.moving, y: p.y, seat: p.seat }, p.id);
       return;
     }
 

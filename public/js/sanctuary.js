@@ -9,6 +9,7 @@ import * as THREE from '/vendor/three/three.module.js';
 const W = 56;   // x 폭
 const D = 38;   // z 깊이
 const H = 15;   // 층고
+const FRONT = 9; // 예배당 앞 마당/게시판 구역 깊이
 
 /* ---------- 캔버스 텍스처 헬퍼 ---------- */
 function makeCanvas(size, draw) {
@@ -112,6 +113,72 @@ function slideTexture(lines, accent = '#d8b45a') {
   return canvasTexture(c);
 }
 
+/** 앞마당 석재 바닥 */
+function stoneTexture() {
+  return canvasTexture(makeCanvas(256, (ctx, s) => {
+    ctx.fillStyle = '#8e8f8d'; ctx.fillRect(0, 0, s, s);
+    ctx.strokeStyle = 'rgba(45,45,45,0.55)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i <= s; i += 42) {
+      ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, s); ctx.stroke();
+    }
+    for (let j = 0; j <= s; j += 30) {
+      ctx.beginPath(); ctx.moveTo(0, j); ctx.lineTo(s, j); ctx.stroke();
+    }
+    // 무작위 얼룩(석재 질감)
+    for (let i = 0; i < 260; i++) {
+      ctx.fillStyle = `rgba(${100 + Math.random() * 80},${100 + Math.random() * 80},${100 + Math.random() * 80},0.22)`;
+      const r = 2 + Math.random() * 8;
+      ctx.beginPath(); ctx.arc(Math.random() * s, Math.random() * s, r, 0, Math.PI * 2); ctx.fill();
+    }
+  }), [8, 3]);
+}
+
+/** 게시판 캔버스 (실제 공식 소식을 런타임에 그려 넣는다) */
+const BOARD = { w: 1024, h: 640 };
+function drawBulletinBoard(ctx, w, h, items = []) {
+  // 배경: 나무 게시판
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, '#5b3b23');
+  grad.addColorStop(1, '#3a2414');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#d8b45a'; ctx.lineWidth = 10;
+  ctx.strokeRect(10, 10, w - 20, h - 20);
+  // 제목
+  ctx.fillStyle = '#f2e6c8';
+  ctx.font = "800 58px 'Nanum Myeongjo', serif";
+  ctx.textAlign = 'center';
+  ctx.fillText('순복음소식', w / 2, 78);
+  ctx.fillStyle = '#d8b45a';
+  ctx.fillRect(w / 2 - 130, 100, 260, 4);
+  ctx.font = "400 20px 'Noto Sans KR', sans-serif";
+  ctx.fillStyle = '#cbb98a';
+  ctx.fillText('공식 교회소식', w / 2, 132);
+  // 목록
+  ctx.textAlign = 'left';
+  const startY = 175, lineH = 82;
+  if (!items.length) {
+    ctx.font = "400 28px 'Noto Sans KR', sans-serif";
+    ctx.fillStyle = '#e9e2d3';
+    ctx.fillText('소식을 불러오는 중입니다…', 70, startY + 20);
+    return;
+  }
+  items.slice(0, 5).forEach((item, i) => {
+    const y = startY + i * lineH;
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.fillRect(46, y, w - 92, lineH - 8);
+    ctx.strokeStyle = 'rgba(216,180,90,0.35)'; ctx.lineWidth = 2;
+    ctx.strokeRect(46, y, w - 92, lineH - 8);
+    ctx.font = "700 25px 'Noto Sans KR', sans-serif";
+    ctx.fillStyle = '#f5f0df';
+    const title = item.title.length > 52 ? item.title.slice(0, 52) + '…' : item.title;
+    ctx.fillText(title, 70, y + 34);
+    ctx.font = "400 19px 'Noto Sans KR', sans-serif";
+    ctx.fillStyle = '#cbb98a';
+    ctx.fillText(item.date, 70, y + 62);
+  });
+}
+
 /** 벽면 상단 골드 레터링 */
 function wallTextTexture(text) {
   const c = document.createElement('canvas');
@@ -173,18 +240,124 @@ export function buildSanctuary(scene) {
   runner.receiveShadow = true;
   root.add(runner);
 
-  /* 벽 (6면) — 입구 쪽(z=+D/2)만 문이 있는 벽 */
+  /* 벽 (6면) — 입구 쪽(z=+D/2)에는 앞마당으로 이어지는 포털 */
   const wallT = 0.6;
-  root.add(box(W + wallT * 2, H, wallT, MAT.wall, 0, H / 2, -D / 2 - wallT / 2, { shadow: false })); // 뒤(십자가 벽)
-  root.add(box(W + wallT * 2, H, wallT, MAT.wall, 0, H / 2,  D / 2 + wallT / 2, { shadow: false })); // 입구
+  const frontZ = D / 2 + wallT / 2;
+  const openingHalf = 3.0;
+  // 남쪽(십자가 벽) / 좌우 벽
+  root.add(box(W + wallT * 2, H, wallT, MAT.wall, 0, H / 2, -D / 2 - wallT / 2, { shadow: false }));
   root.add(box(wallT, H, D, MAT.wall, -W / 2 - wallT / 2, H / 2, 0, { shadow: false }));
   root.add(box(wallT, H, D, MAT.wall,  W / 2 + wallT / 2, H / 2, 0, { shadow: false }));
-  // 벽 하단 목재 웨인스코팅
+  // 입구 벽: 중앙 포털 아치(좌/우 벽 + 상단 보)
+  const sideW = (W - openingHalf * 2) / 2 + wallT; // 양쪽 각각 (벽이 살짝 겹침)
+  const leftW = W / 2 - openingHalf + wallT;
+  root.add(box(leftW, H, wallT, MAT.wall, -(openingHalf + leftW / 2), H / 2, frontZ, { shadow: false }));
+  root.add(box(leftW, H, wallT, MAT.wall,  (openingHalf + leftW / 2), H / 2, frontZ, { shadow: false }));
+  root.add(box(openingHalf * 2 + wallT * 2, H - 6.2, wallT, MAT.wall, 0, (H + 6.2) / 2, frontZ, { shadow: false }));
+  // 포털 기둥(기하화) + 상인방
+  for (const x of [-openingHalf - 0.55, openingHalf + 0.55]) {
+    root.add(box(1.2, 7.2, 1.2, MAT.marble, x, 3.6, frontZ - 0.2, { shadow: false }));
+    root.add(box(1.4, 0.35, 1.4, MAT.gold, x, 7.25, frontZ - 0.2, { shadow: false }));
+  }
+  // 포털 좌우 충돌체 — 가운데(-3..3)만 통과 가능
+  obstacles.push({ minX: -W / 2 - 1, maxX: -openingHalf, minZ: D / 2 - 0.4, maxZ: D / 2 + 0.5 });
+  obstacles.push({ minX:  openingHalf, maxX:  W / 2 + 1, minZ: D / 2 - 0.4, maxZ: D / 2 + 0.5 });
+  /* 웨인스코팅 — 입구 포털 구간은 제외 */
   const wains = (x, z, w, d) => root.add(box(w, 1.6, d, MAT.woodDark, x, 0.8, z, { shadow: false }));
   wains(0, -D / 2 + 0.05, W, 0.15);
-  wains(0,  D / 2 - 0.05, W, 0.15);
+  wains(-W / 2 + openingHalf / 2 + 1.4, D / 2 - 0.05, W / 2 - openingHalf - 2.8, 0.15);
+  wains( W / 2 - openingHalf / 2 - 1.4, D / 2 - 0.05, W / 2 - openingHalf - 2.8, 0.15);
   wains(-W / 2 + 0.05, 0, 0.15, D);
   wains( W / 2 - 0.05, 0, 0.15, D);
+
+  /* ========== 앞마당 (예배당 외부) ========== */
+  // 석재 바닥
+  const frontFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(W, FRONT),
+    new THREE.MeshStandardMaterial({ map: stoneTexture(), roughness: 0.9 })
+  );
+  frontFloor.rotation.x = -Math.PI / 2;
+  frontFloor.position.set(0, 0, D / 2 + FRONT / 2);
+  frontFloor.receiveShadow = true;
+  root.add(frontFloor);
+
+  // 마당 좌우 담장/경계 + 중앙 회랑
+  for (let i = 0; i < Math.ceil(FRONT / 1.2); i++) {
+    const z = D / 2 + 0.6 + i * 1.2;
+    root.add(box(0.6, 1.1, 1.0, MAT.wallLow, -W / 2 + 0.3, 0.55, z, { shadow: false }));
+    root.add(box(0.6, 1.1, 1.0, MAT.wallLow,  W / 2 - 0.3, 0.55, z, { shadow: false }));
+  }
+
+  // 담장 앞 티크 석재 담장 기둥
+  for (let z = D / 2 + 1.8; z < D / 2 + FRONT; z += 3.6) {
+    root.add(box(1.0, 2.0, 1.0, MAT.marble, -W / 2 + 0.5, 1.0, z, { shadow: false }));
+    root.add(box(1.0, 2.0, 1.0, MAT.marble,  W / 2 - 0.5, 1.0, z, { shadow: false }));
+  }
+
+  // 포털 상단 십자가(외부에서도 보이게)
+  const facadeCross = new THREE.Group();
+  facadeCross.position.set(0, 10.7, frontZ + 0.35);
+  const fcV = box(0.9, 4.6, 0.35, MAT.goldGlow, 0, 0, 0);
+  const fcH = box(3.1, 0.9, 0.35, MAT.goldGlow, 0, 0.7, 0);
+  facadeCross.add(fcV, fcH);
+  root.add(facadeCross);
+
+  // 정면 교회 이름 레터링(외부)
+  const facadeText = new THREE.Mesh(
+    new THREE.PlaneGeometry(22, 2.6),
+    new THREE.MeshBasicMaterial({ map: wallTextTexture('여의도순복음교회'), transparent: true, depthWrite: false })
+  );
+  facadeText.position.set(0, 13.3, frontZ + 0.33);
+  root.add(facadeText);
+
+  // 입구 아치 내부 회백가리개(따뜻한 톤)
+  const entryGlow = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.2, 6.2),
+    new THREE.MeshBasicMaterial({ map: canvasTexture(makeCanvas(64, (ctx, s) => {
+      const g = ctx.createRadialGradient(s / 2, s / 2, 2, s / 2, s / 2, s / 2);
+      g.addColorStop(0, 'rgba(255,240,200,0.85)');
+      g.addColorStop(1, 'rgba(255,240,200,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, s, s);
+    })), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending })
+  );
+  entryGlow.position.set(0, 5.2, frontZ - 0.28);
+  root.add(entryGlow);
+
+  /* ========== 공식 소식 게시판 (마당 왼쪽) ========== */
+  const boardBacking = box(7.8, 4.7, 0.25, MAT.woodDark, -10.4, 2.15, D / 2 + 0.38, { shadow: true });
+  root.add(boardBacking);
+  // 실제 소식은 런타임에 drawBulletinBoard로 갱신
+  const boardCanvas = document.createElement('canvas');
+  boardCanvas.width = BOARD.w; boardCanvas.height = BOARD.h;
+  drawBulletinBoard(boardCanvas.getContext('2d'), BOARD.w, BOARD.h, []);
+  const boardTexture = new THREE.CanvasTexture(boardCanvas);
+  boardTexture.colorSpace = THREE.SRGBColorSpace;
+  boardTexture.anisotropy = 8;
+  const boardMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(7.0, 4.1),
+    new THREE.MeshBasicMaterial({ map: boardTexture })
+  );
+  boardMesh.position.set(-10.4, 2.15, D / 2 + 0.53);
+  root.add(boardMesh);
+  // 게시판 하단 받침/난간
+  root.add(box(8.6, 0.22, 0.5, MAT.marble, -10.4, -0.05, D / 2 + 0.42, { shadow: false }));
+  // 작은 화분 2개
+  for (const x of [-14.4, -6.4]) {
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.35, 0.8, 10), MAT.woodDark);
+    pot.position.set(x, 0.4, D / 2 + 1.0);
+    pot.castShadow = true;
+    root.add(pot);
+    for (let i = 0; i < 4; i++) {
+      const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.5, 6), MAT.leaf);
+      const a = i * 1.57 + 0.4;
+      leaf.position.set(x + Math.cos(a) * 0.24, 1.25, D / 2 + 1.0 + Math.sin(a) * 0.24);
+      leaf.rotation.x = Math.sin(a) * 0.3;
+      leaf.rotation.z = Math.cos(a) * 0.3;
+      root.add(leaf);
+    }
+  }
+  // 게시판 영역(상호작용 범위) — 사용자는 z = D/2+1.2 근처에서 F로 열 수 있음
+  const bulletinArea = { x: -10.4, z: D / 2 + 0.6, radius: 2.6 };
 
   /* 천장 + 보 */
   root.add(box(W + wallT * 2, 0.6, D + wallT * 2, MAT.ceiling, 0, H + 0.3, 0, { shadow: false }));
@@ -300,6 +473,18 @@ export function buildSanctuary(scene) {
   const pewGeoBase = new THREE.BoxGeometry(9.6, 0.5, 0.34);
   const pewGeoBack = new THREE.BoxGeometry(9.6, 0.85, 0.18);
   const pewGeoEnd  = new THREE.BoxGeometry(0.28, 1.25, 1.0);
+  // 페우 좌석 목록 — 개별 지정석: 좌측/우측 각 8열 × 9석 = 144석
+  const seats = [];
+  let seatId = 0;
+  for (const side of [-1, 1]) {
+    const cx = side * 8.2;
+    for (let row = 0; row < 8; row++) {
+      const z = 3.6 - row * 1.5;
+      for (let col = 0; col < 9; col++) {
+        seats.push({ id: seatId++, side, row, col, x: cx + (-3.84 + col * 0.96), y: 0.74, z, face: Math.PI });
+      }
+    }
+  }
   for (const side of [-1, 1]) {
     const cx = side * 8.2;
     for (let i = 0; i < 8; i++) {
@@ -343,11 +528,16 @@ export function buildSanctuary(scene) {
     root.add(g);
   }
 
-  /* ========== 입구 문 ========== */
-  for (const x of [-9, 0, 9]) {
-    const door = box(4.6, 6.4, 0.3, MAT.woodDark, x, 3.2, D / 2 - 0.18, { shadow: false });
+  /* ========== 입구 문 (열린 채로 둔다) ========== */
+  for (const side of [-1, 1]) {
+    // 양쪽으로 활짝 열린 대문
+    const door = box(3.6, 5.8, 0.18, MAT.woodDark, side * 4.9, 2.9, D / 2 - 0.35);
+    door.rotation.y = side * 0.55;
+    door.castShadow = true;
     root.add(door);
-    root.add(box(4.0, 5.8, 0.1, new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.4, metalness: 0.6 }), x, 3.1, D / 2 - 0.36, { shadow: false }));
+    const a = box(3.0, 5.2, 0.1, new THREE.MeshStandardMaterial({ color: 0x8a6a3a, roughness: 0.38, metalness: 0.55 }), side * 4.55, 2.8, D / 2 - 0.02);
+    a.rotation.y = side * 0.85;
+    root.add(a);
   }
 
   /* ========== 기도 촛불 테이블 (입구 우측) ========== */
@@ -399,10 +589,21 @@ export function buildSanctuary(scene) {
 
   return {
     obstacles,
-    bounds: { minX: -W / 2 + 1.1, maxX: W / 2 - 1.1, minZ: -D / 2 + 1.1, maxZ: D / 2 - 1.1 },
+    bounds: { minX: -W / 2 + 1.1, maxX: W / 2 - 1.1, minZ: -D / 2 + 1.1, maxZ: D / 2 + FRONT - 1.0 },
     candleArea,
-    spawn: new THREE.Vector3(0, 0, 10.5),
+    spawn: new THREE.Vector3(0, 0, 10.5), // 예배당 안에서 시작
     crossPosition: new THREE.Vector3(0, 8.7, -D / 2 + 0.35),
-    dims: { W, D, H },
+    bulletinArea,
+    bulletin: {
+      mesh: boardMesh,
+      canvas: boardCanvas,
+      texture: boardTexture,
+      draw(items) {
+        drawBulletinBoard(boardCanvas.getContext('2d'), BOARD.w, BOARD.h, items ?? []);
+        boardTexture.needsUpdate = true;
+      },
+    },
+    seats,
+    dims: { W, D, H, FRONT },
   };
 }
