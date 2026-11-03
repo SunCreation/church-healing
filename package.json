@@ -1,0 +1,15 @@
+{
+  "name": "church-healing",
+  "version": "0.1.0",
+  "description": "빛의 성전 — 여의도순복음교회 테마 3D 힐링 공간 (멀티플레이)",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "three": "^0.166.0",
+    "ws": "^8.18.0"
+  }
+}
