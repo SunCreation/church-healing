@@ -13,6 +13,65 @@ const LS = { name: 'light-sanctuary:name', color: 'light-sanctuary:color' };
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+/* ============ 확대 게시판 ============ */
+const bulletinViewer = $('#bulletinViewer');
+const bulletinCards = $('#bulletinCards');
+const bulletinClose = $('#bulletinClose');
+let bulletinOpen = false;
+
+function openBulletin() {
+  document.activeElement?.blur();
+  keys.clear();
+  bulletinOpen = true;
+  bulletinViewer.classList.remove('hidden');
+  $('#interactHint').classList.add('hidden');
+  // frontNews는 3D 게시판 초기화 때 로드되며, 비어 있으면 fetch 재시도
+  if ((frontNews.items?.length ?? 0) > 0) {
+    renderBulletinCards(frontNews);
+    return;
+  }
+  bulletinCards.innerHTML = '<p class="bulletin-loading">게시물을 불러오는 중…</p>';
+  fetch('/api/news')
+    .then((res) => res.ok ? res.json() : null)
+    .then((data) => {
+      if (data?.items) frontNews = data;
+      renderBulletinCards(frontNews);
+    })
+    .catch(() => {
+      bulletinCards.innerHTML = '<p class="bulletin-loading">소식을 불러오지 못했습니다. 공식 페이지를 확인해 주세요.</p>';
+    });
+}
+function closeBulletin() {
+  bulletinOpen = false;
+  bulletinViewer.classList.add('hidden');
+}
+bulletinClose?.addEventListener('click', closeBulletin);
+bulletinViewer?.addEventListener('click', (e) => {
+  if (e.target === e.currentTarget || e.target === bulletinViewer.querySelector('.bulletin-viewer__backdrop')) closeBulletin();
+});
+bulletinCards?.addEventListener('click', (e) => {
+  const card = e.target.closest('.bulletin-card');
+  const url = card?.dataset?.url;
+  if (url) window.open(url, '_blank', 'noopener,noreferrer');
+});
+function renderBulletinCards(data) {
+  const items = (data?.items ?? []).slice(0, 9);
+  if (!items.length) {
+    bulletinCards.innerHTML = '<p class="bulletin-loading">표시할 소식을 가져오지 못했습니다. 공식 페이지를 확인해 주세요.</p>';
+    return;
+  }
+  bulletinCards.innerHTML = items.map((it, i) => `
+    <button class="bulletin-card" data-url="${escapeAttr(it.url)}" aria-label="${escapeAttr(it.title)} 보기">
+      <div class="bulletin-card__date">${escapeText(it.date)}</div>
+      <h3>${escapeText(it.title)}</h3>
+      <div class="bulletin-card__foot"><span>#${String(i + 1).padStart(2, '0')}</span><span>영상 보기 ↗</span></div>
+    </button>`).join('');
+}
+function escapeText(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+function escapeAttr(s) { return escapeText(s); }
+
 /* ============ 입장 화면 ============ */
 const entrySection = $('#entry');
 const entryForm = $('#entryForm');
@@ -261,8 +320,7 @@ function canStandUp() {
 function interact() {
   if (canStandUp()) return standUp();
   if (isNearBulletin(three?.player?.position)) {
-    keys.clear();
-    openPanel('news');
+    openBulletin();
     return;
   }
   const nearest = findNearestSeat(three.player.position);
@@ -394,6 +452,10 @@ addEventListener('keydown', (e) => {
     if (e.key === 'Escape') document.activeElement.blur();
     return;
   }
+  if (bulletinOpen) {
+    if (e.code === 'Escape' || e.code === 'KeyF') { e.preventDefault(); closeBulletin(); }
+    return;
+  }
   keys.add(e.code);
   if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF'].includes(e.code)) {
     e.preventDefault();
@@ -521,7 +583,7 @@ function updateInteractHint(pos) {
     return;
   }
   if (isNearBulletin(pos)) {
-    setHint('F · 여의도순복음교회 공식 소식 보기');
+    setHint('F · 게시판 확대 열기');
     return;
   }
   const nearest = findNearestSeat(pos);
@@ -569,6 +631,7 @@ function closePanel() {
 }
 $$('.tab-btn').forEach((btn) => btn.addEventListener('click', () => {
   const name = btn.dataset.panel;
+  if (name === 'news') { openBulletin(); return; }
   if (currentPanel === name) closePanel();
   else openPanel(name);
 }));

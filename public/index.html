@@ -85,6 +85,28 @@
       <span id="headingText">성소 향함</span>
     </div>
 
+    <!-- F 확대: 게시판 전면 뷰 -->
+    <div id="bulletinViewer" class="bulletin-viewer hidden" role="dialog" aria-modal="true" aria-label="교회 소식 게시판">
+      <div class="bulletin-viewer__backdrop" data-close-bulletin></div>
+      <div class="bulletin-viewer__frame" role="document">
+        <header class="bulletin-viewer__head">
+          <div>
+            <span class="bulletin-viewer__kicker">공식</span>
+            <h2>순복음소식</h2>
+            <p>여의도순복음교회 공식 FGTV에서 갱신하는 소식입니다. 본문 재배포 없이 공식 페이지로 이동합니다.</p>
+          </div>
+          <button id="bulletinClose" class="icon-btn" aria-label="닫기">✕</button>
+        </header>
+        <div id="bulletinCards" class="bulletin-cards" aria-live="polite">
+          <p class="bulletin-loading">게시물을 불러오는 중…</p>
+        </div>
+        <footer class="bulletin-viewer__foot">
+          <span>* 공식 페이지로 이동합니다. 본문·영상은 FGTV에서 확인해 주세요.</span>
+          <a class="btn btn--ghost btn--sm" href="https://www.fgtv.com/fgtv/f5/0101.asp" target="_blank" rel="noopener">공식 목록 ↗</a>
+        </footer>
+      </div>
+    </div>
+
     <!-- 상호작용 힌트 -->
     <div id="interactHint" class="interact-hint hidden" aria-live="polite">F</div>
 

@@ -137,46 +137,77 @@ function stoneTexture() {
 /** 게시판 캔버스 (실제 공식 소식을 런타임에 그려 넣는다) */
 const BOARD = { w: 1024, h: 640 };
 function drawBulletinBoard(ctx, w, h, items = []) {
-  // 배경: 나무 게시판
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#5b3b23');
-  grad.addColorStop(1, '#3a2414');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#d8b45a'; ctx.lineWidth = 10;
+  // 초록 게시판 배경 + 나무 프레임
+  const bg = ctx.createLinearGradient(0, 0, 0, h);
+  bg.addColorStop(0, '#2a5a3e');
+  bg.addColorStop(1, '#16321f');
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#d8b45a'; ctx.lineWidth = 8;
   ctx.strokeRect(10, 10, w - 20, h - 20);
   // 제목
   ctx.fillStyle = '#f2e6c8';
-  ctx.font = "800 58px 'Nanum Myeongjo', serif";
+  ctx.font = "800 54px 'Nanum Myeongjo', serif";
   ctx.textAlign = 'center';
-  ctx.fillText('순복음소식', w / 2, 78);
+  ctx.fillText('순복음소식', w / 2, 76);
   ctx.fillStyle = '#d8b45a';
-  ctx.fillRect(w / 2 - 130, 100, 260, 4);
-  ctx.font = "400 20px 'Noto Sans KR', sans-serif";
-  ctx.fillStyle = '#cbb98a';
-  ctx.fillText('공식 교회소식', w / 2, 132);
-  // 목록
-  ctx.textAlign = 'left';
-  const startY = 175, lineH = 82;
-  if (!items.length) {
-    ctx.font = "400 28px 'Noto Sans KR', sans-serif";
-    ctx.fillStyle = '#e9e2d3';
-    ctx.fillText('소식을 불러오는 중입니다…', 70, startY + 20);
-    return;
+  ctx.fillRect(w / 2 - 170, 96, 340, 4);
+  ctx.font = "400 18px 'Noto Sans KR', sans-serif";
+  ctx.fillStyle = '#b7dcc2';
+  ctx.fillText('여의도순복음교회 · 공식 교회소식', w / 2, 124);
+  // 게시물 (실제 제목/날짜가 붙은 종이 사원처럼 그린다)
+  const positions = [
+    { x: 70, y: 170, w: 400 }, { x: 554, y: 170, w: 400 },
+    { x: 70, y: 355, w: 400 }, { x: 554, y: 355, w: 400 },
+    { x: 312, y: 470, w: 400 },
+  ];
+  const colors = ['#f8f3de', '#f3ecd2', '#fdf8ea', '#ece5cc', '#f5eed6'];
+  for (let i = 0; i < Math.min(items.length, positions.length); i++) {
+    const p = positions[i];
+    const it = items[i];
+    ctx.save();
+    ctx.fillStyle = colors[i % colors.length];
+    ctx.shadowColor = 'rgba(0,0,0,0.35)'; ctx.shadowBlur = 6; ctx.shadowOffsetY = 3;
+    ctx.fillRect(p.x, p.y, p.w, 100);
+    ctx.shadowColor = 'transparent';
+    // 핀
+    const pinX = p.x + p.w / 2, pinY = p.y + 8;
+    const pin = ctx.createRadialGradient(pinX - 2, pinY - 2, 1, pinX, pinY, 9);
+    pin.addColorStop(0, '#fff');
+    pin.addColorStop(0.5, '#d8a6a6');
+    pin.addColorStop(1, '#7a2d2d');
+    ctx.fillStyle = pin;
+    ctx.beginPath(); ctx.arc(pinX, pinY, 7, 0, Math.PI * 2); ctx.fill();
+    // 본문
+    ctx.fillStyle = '#333';
+    ctx.font = "700 19px 'Noto Sans KR', sans-serif";
+    const words = splitLines(it.title, 26);
+    words.slice(0, 2).forEach((line, li) => {
+      ctx.fillText(line, p.x + 18, p.y + 38 + li * 25);
+    });
+    ctx.fillStyle = '#6b6550';
+    ctx.font = "400 15px 'Noto Sans KR', sans-serif";
+    ctx.fillText(String(it.date).replace(/\.$/, ''), p.x + 18, p.y + 88);
+    ctx.restore();
   }
-  items.slice(0, 5).forEach((item, i) => {
-    const y = startY + i * lineH;
-    ctx.fillStyle = 'rgba(0,0,0,0.22)';
-    ctx.fillRect(46, y, w - 92, lineH - 8);
-    ctx.strokeStyle = 'rgba(216,180,90,0.35)'; ctx.lineWidth = 2;
-    ctx.strokeRect(46, y, w - 92, lineH - 8);
-    ctx.font = "700 25px 'Noto Sans KR', sans-serif";
-    ctx.fillStyle = '#f5f0df';
-    const title = item.title.length > 52 ? item.title.slice(0, 52) + '…' : item.title;
-    ctx.fillText(title, 70, y + 34);
-    ctx.font = "400 19px 'Noto Sans KR', sans-serif";
-    ctx.fillStyle = '#cbb98a';
-    ctx.fillText(item.date, 70, y + 62);
-  });
+  if (!items.length) {
+    ctx.fillStyle = '#e9e2d3';
+    ctx.font = "400 28px 'Noto Sans KR', sans-serif";
+    ctx.textAlign = 'center';
+    ctx.fillText('소식을 불러오는 중입니다…', w / 2, 260);
+  }
+}
+function splitLines(text, maxLen) {
+  const words = String(text).split(/\s+/);
+  const lines = [];
+  let cur = '';
+  for (const word of words) {
+    if (!cur) cur = word;
+    else if ((cur + ' ' + word).length > maxLen) { lines.push(cur); cur = word; }
+    else cur += ' ' + word;
+    if (lines.length >= 2) break;
+  }
+  if (cur && lines.length < 2) lines.push(cur);
+  return lines;
 }
 
 /** 벽면 상단 골드 레터링 */
@@ -325,22 +356,37 @@ export function buildSanctuary(scene) {
 
   /* 게시판 상단 표지(외부) + 실내 안내문 */
   const boardSign = new THREE.Mesh(
-    new THREE.PlaneGeometry(6.6, 1.35),
+    new THREE.PlaneGeometry(7.6, 1.45),
     new THREE.MeshBasicMaterial({ map: wallTextTexture('공식 소식 게시판'), transparent: true, depthWrite: false })
   );
-  boardSign.position.set(-10.4, 5.05, D / 2 + 0.34);
+  boardSign.position.set(-10.3, 5.55, D / 2 + 0.85);
   root.add(boardSign);
   const insideSign = new THREE.Mesh(
-    new THREE.PlaneGeometry(5.8, 1.1),
+    new THREE.PlaneGeometry(7.2, 1.35),
     new THREE.MeshBasicMaterial({ map: wallTextTexture('← 공식 소식'), transparent: true, depthWrite: false })
   );
-  insideSign.position.set(-5.3, 6.8, D / 2 - 0.1);
+  insideSign.position.set(-5.9, 6.2, D / 2 - 0.08);
   insideSign.rotation.y = Math.PI;
   root.add(insideSign);
+  // 마당 중앙에서 게시판의 방향을 알려주는 작은 안내판
+  const guideSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(4.4, 0.95),
+    new THREE.MeshBasicMaterial({ map: wallTextTexture('←  공식 소식'), transparent: true, depthWrite: false })
+  );
+  guideSign.position.set(-3.8, 2.6, D / 2 + 4.4);
+  guideSign.rotation.y = Math.PI;
+  // 안내판이 서 있는 기둥
+  root.add(box(0.22, 2.6, 0.22, MAT.woodDark, -5.9, 1.3, D / 2 + 4.4, { shadow: false }));
+  root.add(box(0.22, 2.6, 0.22, MAT.woodDark, -1.7, 1.3, D / 2 + 4.4, { shadow: false }));
+  root.add(guideSign);
 
-  /* ========== 공식 소식 게시판 (마당 왼쪽) ========== */
-  const boardBacking = box(7.8, 4.7, 0.25, MAT.woodDark, -10.4, 2.15, D / 2 + 0.38, { shadow: true });
+  /* ========== 공식 소식 게시판 (마당 왼쪽 — 초록 나무틀 게시판) ========== */
+  const boardFrameMat = new THREE.MeshStandardMaterial({ color: 0x5a3b23, roughness: 0.6, metalness: 0.05 });
+  const boardBacking = box(8.4, 5.0, 0.22, boardFrameMat, -10.4, 2.3, D / 2 + 1.0, { shadow: true });
   root.add(boardBacking);
+  // 받침대(벽걸이 대신 지면에 고정된 입간판/게시판)
+  root.add(box(0.45, 2.2, 0.45, boardFrameMat, -14.1, 1.1, D / 2 + 1.0, { shadow: false }));
+  root.add(box(0.45, 2.2, 0.45, boardFrameMat, -6.7, 1.1, D / 2 + 1.0, { shadow: false }));
   // 실제 소식은 런타임에 drawBulletinBoard로 갱신
   const boardCanvas = document.createElement('canvas');
   boardCanvas.width = BOARD.w; boardCanvas.height = BOARD.h;
@@ -349,10 +395,14 @@ export function buildSanctuary(scene) {
   boardTexture.colorSpace = THREE.SRGBColorSpace;
   boardTexture.anisotropy = 8;
   const boardMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(7.0, 4.1),
+    new THREE.PlaneGeometry(7.5, 4.15),
     new THREE.MeshBasicMaterial({ map: boardTexture })
   );
-  boardMesh.position.set(-10.4, 2.15, D / 2 + 0.53);
+  boardMesh.position.set(-10.4, 2.3, D / 2 + 1.13);
+  // 밝은 조명: 벽걸이 게시판이 실제로 눈에 잘 들어오게
+  const boardLight = new THREE.PointLight(0xfff0cc, 16, 10, 2);
+  boardLight.position.set(-10.4, 3.4, D / 2 + 2.1);
+  scene.add(boardLight);
   root.add(boardMesh);
   // 게시판 하단 받침/난간
   root.add(box(8.6, 0.22, 0.5, MAT.marble, -10.4, -0.05, D / 2 + 0.42, { shadow: false }));
@@ -372,7 +422,7 @@ export function buildSanctuary(scene) {
     }
   }
   // 게시판 영역(상호작용 범위) — 사용자는 z = D/2+1.2 근처에서 F로 열 수 있음
-  const bulletinArea = { x: -10.4, z: D / 2 + 0.6, radius: 2.6 };
+  const bulletinArea = { x: -10.4, z: D / 2 + 1.1, radius: 2.4 };
 
   /* 천장 + 보 */
   root.add(box(W + wallT * 2, 0.6, D + wallT * 2, MAT.ceiling, 0, H + 0.3, 0, { shadow: false }));
