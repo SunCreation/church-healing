@@ -67,12 +67,12 @@
       </div>
 
       <nav class="hud__tabs" aria-label="콘텐츠 패널 열기">
-        <button class="tab-btn" data-panel="worship">📺 <span>예배중계</span></button>
-        <button class="tab-btn" data-panel="verse">📖 <span>묵상</span></button>
-        <button class="tab-btn" data-panel="prayer">🕯️ <span>기도</span></button>
-        <button class="tab-btn" data-panel="community">💬 <span>나눔</span></button>
-        <button class="tab-btn" data-panel="info">ℹ️ <span>안내</span></button>
-        <button class="tab-btn" data-panel="news">📋 <span>소식</span></button>
+        <button class="tab-btn" data-panel="worship" aria-label="예배중계">📺 <span>예배중계</span></button>
+        <button class="tab-btn" data-panel="verse" aria-label="묵상">📖 <span>묵상</span></button>
+        <button class="tab-btn" data-panel="prayer" aria-label="기도">🕯️ <span>기도</span></button>
+        <button class="tab-btn" data-panel="community" aria-label="나눔">💬 <span>나눔</span></button>
+        <button class="tab-btn" data-panel="info" aria-label="안내">ℹ️ <span>안내</span></button>
+        <button class="tab-btn" data-panel="news" aria-label="소식">📋 <span>소식</span></button>
       </nav>
     </header>
 
@@ -114,6 +114,23 @@
 
     <!-- 상호작용 힌트 -->
     <div id="interactHint" class="interact-hint hidden" aria-live="polite">F</div>
+
+    <!-- 휴대폰: 왼손 이동/회전 + 오른손 달리기/상호작용 -->
+    <section id="touchControls" class="touch-controls" aria-label="터치 조작">
+      <div class="touch-navigation">
+        <div class="touch-pad" role="group" aria-label="이동 및 회전">
+          <button class="touch-key touch-key--forward" data-touch-hold="forward" aria-label="앞으로 이동 (누르고 있기)" aria-pressed="false"><span aria-hidden="true">↑</span><small>앞으로</small></button>
+          <button class="touch-key touch-key--left" data-touch-hold="left" aria-label="왼쪽 회전 (누르고 있기)" aria-pressed="false"><span aria-hidden="true">↶</span><small>회전</small></button>
+          <button class="touch-key touch-key--backward" data-touch-hold="backward" aria-label="뒤로 이동 (누르고 있기)" aria-pressed="false"><span aria-hidden="true">↓</span><small>뒤로</small></button>
+          <button class="touch-key touch-key--right" data-touch-hold="right" aria-label="오른쪽 회전 (누르고 있기)" aria-pressed="false"><span aria-hidden="true">↷</span><small>회전</small></button>
+        </div>
+        <p class="touch-help">버튼을 꾹 눌러 이동<br />빈 화면을 밀어 시야 회전</p>
+      </div>
+      <div class="touch-actions">
+        <button class="touch-key touch-key--run" data-touch-hold="run" aria-label="빠르게 이동 (이동 버튼과 함께 누르기)" aria-pressed="false">빠르게</button>
+        <button class="touch-interact" data-touch-interact aria-label="가까이 가세요" disabled><span aria-hidden="true">✋</span><strong data-touch-label>가까이 가세요</strong></button>
+      </div>
+    </section>
 
     <!-- 하단: 이동 안내 + 채팅 -->
     <footer class="hud hud--bottom">

@@ -6,6 +6,7 @@ import * as THREE from '/vendor/three/three.module.js';
 import { buildSanctuary } from './sanctuary.js';
 import { createAvatar } from './avatars.js';
 import { renderPanel, PANEL_TITLES } from './panels.js';
+import { createTouchControls, bindTap } from './touch-controls.js';
 
 const AVATAR_COLORS = ['#7fb3ff', '#f2a9a9', '#9fd6a8', '#f5d78e', '#c9a8f0', '#8fd6d0', '#e8b4d9', '#b8c4d6'];
 const LS = { name: 'light-sanctuary:name', color: 'light-sanctuary:color' };
@@ -40,6 +41,7 @@ function openBulletin(kind = 'notice') {
   document.activeElement?.blur();
   keys.clear();
   bulletinOpen = true;
+  updateInputAvailability();
   setBulletinTab(kind);
   bulletinViewer.classList.remove('hidden');
   bulletinClose.focus();
@@ -64,6 +66,7 @@ function closeBulletin() {
   bulletinOpen = false;
   bulletinViewer.classList.add('hidden');
   bulletinPreviousFocus?.focus();
+  updateInputAvailability();
 }
 bulletinClose?.addEventListener('click', closeBulletin);
 bulletinTabs.forEach((tab) => tab.addEventListener('click', () => {
@@ -326,7 +329,7 @@ function setHint(text) {
     interactHint.classList.add('hidden');
     return;
   }
-  interactHint.textContent = text;
+  if (interactHint.textContent !== text) interactHint.textContent = text;
   interactHint.classList.remove('hidden');
 }
 async function loadFrontNews(sanctuary) {
@@ -359,6 +362,8 @@ function canStandUp() {
   return mySeat !== null;
 }
 function interact() {
+  if (!three || worldInputBlocked()) return;
+  resetWorldInput();
   if (canStandUp()) return standUp();
   if (isNearBulletin(three?.player?.position)) {
     openBulletin();
@@ -436,35 +441,54 @@ function initThree() {
 }
 
 function onResize() {
+  const viewport = window.visualViewport;
+  document.documentElement.style.setProperty('--app-height', `${viewport?.height ?? innerHeight}px`);
+  document.documentElement.style.setProperty('--app-top', `${viewport?.offsetTop ?? 0}px`);
+  resetWorldInput();
   if (!three) return;
-  three.camera.aspect = innerWidth / innerHeight;
+  const { width, height } = $('#app').getBoundingClientRect();
+  three.camera.aspect = width / height;
   three.camera.updateProjectionMatrix();
-  three.renderer.setSize(innerWidth, innerHeight);
+  three.renderer.setSize(width, height);
 }
 
 /* ---------- 카메라(뒤에서 바라보는 3인칭; 횡단 드래그로 방향 전환) ---------- */
 let orbitPitch = 0.46;
-let dragging = false;
-let lastX = 0, lastY = 0;
-
-canvas.addEventListener('pointerdown', (e) => {
-  dragging = true; lastX = e.clientX; lastY = e.clientY;
-  canvas.setPointerCapture(e.pointerId);
-});
-canvas.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  const dx = e.clientX - lastX, dy = e.clientY - lastY;
-  lastX = e.clientX; lastY = e.clientY;
-  orbitPitch = THREE.MathUtils.clamp(orbitPitch + dy * 0.004, 0.18, 1.15);
-  if (three && mySeat === null) {
-    // 가로 드래그 = 시야(아바타) 방향 전환
+const touchInput = createTouchControls({
+  root: $('#touchControls'), canvas,
+  onLook(dx, dy) {
+    if (!three || mySeat !== null || worldInputBlocked()) return;
+    orbitPitch = THREE.MathUtils.clamp(orbitPitch + dy * 0.004, 0.18, 1.15);
     three.player.rotation.y -= dx * 0.0052;
     updateHeading();
-  }
+  },
+  onInteract: interact,
 });
-const endDrag = () => { dragging = false; };
-canvas.addEventListener('pointerup', endDrag);
-canvas.addEventListener('pointercancel', endDrag);
+const touchLayout = matchMedia('(any-pointer: coarse), (max-width: 760px)');
+function resetWorldInput() { keys.clear(); touchInput.reset(); }
+function worldInputBlocked() {
+  return !three || bulletinOpen || currentPanel !== null || document.hidden
+    || TYPING_TAGS.has(document.activeElement?.tagName);
+}
+function updateInputAvailability() {
+  const blocked = worldInputBlocked();
+  if (blocked) keys.clear();
+  touchInput.setPaused(blocked);
+  $('#app').classList.toggle('controls-paused', blocked);
+}
+function updateTouchLayout() {
+  resetWorldInput();
+  $('#app').classList.toggle('touch-mode', touchLayout.matches);
+}
+touchLayout.addEventListener('change', updateTouchLayout);
+updateTouchLayout();
+window.visualViewport?.addEventListener('resize', onResize);
+window.visualViewport?.addEventListener('scroll', onResize);
+document.addEventListener('focusin', updateInputAvailability);
+document.addEventListener('focusout', () => queueMicrotask(updateInputAvailability));
+document.addEventListener('visibilitychange', () => { resetWorldInput(); updateInputAvailability(); });
+addEventListener('blur', resetWorldInput);
+addEventListener('orientationchange', resetWorldInput);
 
 /* ============ 현재 방향 표시 ============ */
 const headingHud = $('#headingHud');
@@ -498,6 +522,10 @@ addEventListener('keydown', (e) => {
     if (e.code === 'Escape' || e.code === 'KeyF') { e.preventDefault(); closeBulletin(); }
     return;
   }
+  if (currentPanel !== null) {
+    if (e.code === 'Escape') closePanel();
+    return;
+  }
   keys.add(e.code);
   if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyF'].includes(e.code)) {
     e.preventDefault();
@@ -507,7 +535,6 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Escape') closePanel();
 });
 addEventListener('keyup', (e) => keys.delete(e.code));
-addEventListener('blur', () => keys.clear());
 
 /* ---------- 충돌(원 vs AABB) ---------- */
 const PLAYER_RADIUS = 0.55;
@@ -547,25 +574,28 @@ function tick() {
   const dt = Math.min(three.clock.getDelta(), 0.05);
   const t = three.clock.elapsedTime;
   const { camera, renderer, scene, player, sanctuary } = three;
+  updateInputAvailability();
+  const canMove = !worldInputBlocked() && mySeat === null;
+  touchInput.setMovementEnabled(mySeat === null);
 
   /* 방향 전환 + 앞으로 이동 (이동은 바라보는 방향으로만, 좌우는 회전) */
   const TURN_SPEED = 2.4;
-  if (mySeat === null) {
-    if (keys.has('ArrowLeft') || keys.has('KeyA')) player.rotation.y += TURN_SPEED * dt;
-    if (keys.has('ArrowRight') || keys.has('KeyD')) player.rotation.y -= TURN_SPEED * dt;
+  if (canMove) {
+    if (keys.has('ArrowLeft') || keys.has('KeyA') || touchInput.has('left')) player.rotation.y += TURN_SPEED * dt;
+    if (keys.has('ArrowRight') || keys.has('KeyD') || touchInput.has('right')) player.rotation.y -= TURN_SPEED * dt;
   }
   const yaw = player.rotation.y;
   const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
   moveVec.set(0, 0, 0);
-  if (mySeat === null) {
-    if (keys.has('KeyW') || keys.has('ArrowUp')) moveVec.add(forward);
-    if (keys.has('KeyS') || keys.has('ArrowDown')) moveVec.sub(forward);
+  if (canMove) {
+    if (keys.has('KeyW') || keys.has('ArrowUp') || touchInput.has('forward')) moveVec.add(forward);
+    if (keys.has('KeyS') || keys.has('ArrowDown') || touchInput.has('backward')) moveVec.sub(forward);
   }
 
   const moving = moveVec.lengthSq() > 0;
   if (moving) {
     moveVec.normalize();
-    const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 8.2 : 5.8;
+    const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') || touchInput.has('run') ? 8.2 : 5.8;
     player.position.x += moveVec.x * speed * dt;
     player.position.z += moveVec.z * speed * dt;
     resolveCollisions(player.position);
@@ -620,24 +650,30 @@ function tick() {
 }
 function updateInteractHint(pos) {
   if (!three || !pos) return;
+  if (worldInputBlocked()) { setHint(null); touchInput.setInteraction(null); return; }
   if (mySeat !== null) {
     setHint('F · 자리에서 일어서기');
+    touchInput.setInteraction('일어서기');
     return;
   }
   if (isNearBulletin(pos)) {
     setHint('F · 게시판 확대 열기');
+    touchInput.setInteraction('게시판 열기');
     return;
   }
   const nearest = findNearestSeat(pos);
   if (nearest?.seat) {
     setHint('F · 이 자리에 앉기');
+    touchInput.setInteraction('앉기');
     return;
   }
   if (nearest?.blockedBy) {
     setHint('자리가 찼습니다');
+    touchInput.setInteraction(null);
     return;
   }
   setHint(null);
+  touchInput.setInteraction(null);
 }
 
 const round2 = (n) => Math.round(n * 100) / 100;
@@ -657,6 +693,7 @@ let currentPanel = null;
 
 function openPanel(name) {
   currentPanel = name;
+  updateInputAvailability();
   panelTitle.textContent = PANEL_TITLES[name] ?? name;
   sidePanel.classList.add('open');
   sidePanel.setAttribute('aria-hidden', 'false');
@@ -670,8 +707,9 @@ function closePanel() {
   sidePanel.setAttribute('aria-hidden', 'true');
   panelScrim.classList.add('hidden');
   $$('.tab-btn').forEach((b) => b.classList.remove('active'));
+  updateInputAvailability();
 }
-$$('.tab-btn').forEach((btn) => btn.addEventListener('click', () => {
+$$('.tab-btn').forEach((btn) => bindTap(btn, () => {
   const name = btn.dataset.panel;
   if (name === 'news') { openBulletin(); return; }
   if (currentPanel === name) closePanel();
@@ -701,6 +739,7 @@ chatForm.addEventListener('submit', (e) => {
 /* ============ 입장 ============ */
 entryForm.addEventListener('submit', (e) => {
   e.preventDefault();
+  document.activeElement?.blur();
   playerName = (nameInput.value.trim() || '신도성도').slice(0, 20);
   localStorage.setItem(LS.name, playerName);
   localStorage.setItem(LS.color, chosenColor);
@@ -718,6 +757,7 @@ entryForm.addEventListener('submit', (e) => {
     return;
   }
   connectWS();
+  onResize();
   tick();
   toast(`${playerName} 님, 신도교회 3D 힐링 공간에 오신 것을 환영합니다 ✝ · 입구로 나가면 공식 소식 게시판이 있습니다`);
 });

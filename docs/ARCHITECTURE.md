@@ -29,7 +29,8 @@ church-healing/
       ├─ main.js           씬/카메라/입력/WS/채팅/패널 오케스트레이션
       ├─ sanctuary.js      예배당 빌드 (캔버스 텍스처 절차적 생성, AABB 충돌체 반환)
       ├─ avatars.js        캡슐+구체 저폴리 아바타, 이름표/말풍선 스프라이트
-      └─ panels.js         6개 패널 렌더/바인딩, escapeHtml 강제
+      ├─ panels.js         6개 패널 렌더/바인딩, escapeHtml 강제
+      └─ touch-controls.js Pointer Events 기반 독립 입력 상태 + 멀티터치 탭/시야
 ```
 
 ## 실행 흐름
@@ -112,6 +113,14 @@ church-healing/
 - 앉을 때: 아바타가 좌석면으로 이동하고 시야가 성소(정면)로 고정되며 이동/물리가 비활성화
 - 페우 좌석: 근접 시 `F`로 앉기/일어서기. 앉으면 아바타를 좌석면(y≈0.74)에 가깝게 내리고(루트 y≈0.28), 이동/물리 충돌이 비활성화. 좌석 선점 상태는 WS `pos`(`seat`)로 동기화, 리모트 아바타 y도 보간
 
+## 휴대폰 입력
+
+- `touch-controls.js`가 `pointerId → 버튼/동작`을 보유하고 카메라 포인터를 별도로 추적. 터치 상태는 키보드 `keys`와 분리하며 프레임 루프에서 합성
+- 버튼 pointer capture로 화면 밖에서 손을 떼도 해제. `pointercancel`/`lostpointercapture`/blur/비표시/resize에서 초기화
+- `worldInputBlocked()`로 패널·게시판·텍스트 입력 중 물리/회전 차단. 앉으면 이동 버튼 비활성화, 상호작용은 일어서기로 전환
+- 두 번째 손가락의 메뉴/상호작용도 `bindTap`으로 처리. 뒤따르는 호환 click이 새로 열린 게시판 배경을 눌러 즉시 닫는 현상을 방지. 새 pointerdown은 click 차단을 해제
+- 터치 또는 좁은 화면에서만 두 엄지 영역 UI 표시. safe-area 및 VisualViewport 높이/오프셋을 반영해 노치·키보드·주소창과 겹치지 않도록 함
+
 ## 예배당 밖 게시판
 
 - 위치: 남쪽 입구 앞마당 왼쪽의 독립형 초록 게시판 (플레이어 z≈19.5, x≈-10.4)
@@ -147,7 +156,9 @@ church-healing/
 
 결과: `NO_CONSOLE_ERRORS`. 재현: 서버 실행 후 스크립트 실행 (스크린샷은 참고 자료).
 
-`npm test`: 공식 소식 목록·권한 필터·캐시·동시 조회·부분/전체 장애를 네트워크 없이 검증 (`tests/news.test.cjs`).
+`npm test`: 공식 소식 목록·권한 필터·캐시·동시 조회·부분/전체 장애와 멀티터치 입력 수명주기/탭 중복을 네트워크 없이 검증 (`tests/*.test.cjs`).
+
+`BASE_URL=http://localhost:8788 python3 scripts/smoke-mobile.py`: 실행 중인 서버에서 Chromium 터치 에뮬레이션(CDP)으로 이동/후진/회전/달리기, 두 손가락 이동+시야, 취소/패널/입력/blur/화면 회전 후 정지, 터치로 착석/일어서기/게시판 열기, 세로/가로 및 PC 키보드 회귀를 검증. 실제 기기 성능·iOS 키보드 동작은 별도 확인 필요. 공식 뉴스는 테스트 응답을 사용하고 DB에는 쓰지 않음
 
 추가로 `npm run build`(서버/공개 JS 파싱 검사 + 필수 파일 존재 확인) 통과. 실제 Neon에 대해서는 생성→공감→댓글을 요청하고 `posts/comments/prayers/candles` 행 수를 쿼리로 확인했다(검증 데이터는 삭제).
 

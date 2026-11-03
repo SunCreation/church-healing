@@ -28,7 +28,7 @@ npm start          # http://localhost:8787
 | `npm start` | 서버 실행 (PORT 환경변수, 기본 8787) |
 | `npm run dev` | `node --watch` 자동 재시작 |
 | `npm run build` | 서버/공개 JS 파싱 + 필수 파일 존재 검사 |
-| `npm test` | 공식 소식 파싱·공개 권한·캐시·장애 복구 테스트 |
+| `npm test` | 공식 소식·캐시·장애 복구 및 터치 입력 테스트 |
 
 ## 구조
 
@@ -60,6 +60,19 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 - 📖 날짜별 말씀 묵상 + SOAP 가이드 + 로컬 묵상 노트
 - 🕯️ 기도 촛불 (전원 동시) + 익명 기도 제목
 - 💬 간증/감사/위로 나눔 (공감·댓글)
+
+## 휴대폰 조작
+
+휴대폰·태블릿(또는 폭 760px 이하 화면)에는 터치 조작판이 자동으로 나타납니다.
+
+- **왼쪽 ↑/↓를 누르고 있기**: 앞으로/뒤로 이동. **↶/↷**: 좌우 회전
+- **빈 화면 드래그**: 시야 회전. 이동 버튼과 동시에 조작 가능
+- **빠르게 + 이동 버튼 함께 누르기**: 빠르게 걷기
+- 좌석이나 게시판에 가까이 가면 **앉기 / 일어서기 / 게시판 열기** 버튼 활성화
+- 상단 메뉴·게시판·채팅 입력 중에는 이동이 멈춥니다. 세로/가로 화면과 노치 여백 지원
+- PC 키보드·마우스 조작은 그대로 사용할 수 있습니다.
+
+![휴대폰 터치 조작](docs/screenshots/12_mobile_controls.png)
 
 ![예배 생중계](docs/screenshots/02_worship.png)
 ![기도의 자리](docs/screenshots/04_prayer.png)
@@ -110,6 +123,14 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 
 헤드리스 Chrome + Playwright로 스모크 검증 (입장 → 씬 렌더 → 패널 5종 → 채팅). `NO_CONSOLE_ERRORS` 확인.
 게시판은 3D 보드 렌더 + `F` 확대 뷰 + 공지/주보 탭 전환까지 확인합니다.
+터치 입력은 `npm test`와 `scripts/smoke-mobile.py`(Python Playwright + Google Chrome)로 검증합니다. 서버를 먼저 실행한 뒤:
+
+```bash
+python3 -m pip install playwright  # 최초 한 번, 별도 Python 환경 권장
+BASE_URL=http://localhost:8787 python3 scripts/smoke-mobile.py
+```
+
+브라우저 검증은 모바일 에뮬레이션이며 실제 iPhone/Android 기기 검증은 별도입니다. 스모크는 공식 소식 응답을 대체하고 DB에 글을 쓰지 않습니다.
 자세한 절차는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#테스트--검증).
 
 ## 라이선스/고지

@@ -168,7 +168,7 @@ a { color: var(--gold-strong); }
 .entry__disclaimer { font-size: 0.7rem; color: #8a97ac; line-height: 1.6; margin-top: 4px; }
 
 /* ============ 3D 캔버스 ============ */
-.app { position: fixed; inset: 0; }
+.app { position: fixed; inset: 0; top: var(--app-top, 0px); bottom: auto; height: var(--app-height, 100dvh); }
 .scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
 
 /* ============ HUD ============ */
@@ -196,6 +196,7 @@ a { color: var(--gold-strong); }
 
 .hud__tabs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .tab-btn {
+  touch-action: manipulation;
   display: inline-flex; align-items: center; gap: 6px;
   padding: 8px 13px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;
   color: var(--ivory);
@@ -229,6 +230,45 @@ a { color: var(--gold-strong); }
   padding: 8px 20px; border-radius: 999px; box-shadow: 0 8px 24px rgba(0,0,0,0.35);
   pointer-events: none; letter-spacing: 0.02em; backdrop-filter: blur(6px);
 }
+
+/* 터치 조작: 기존 성전의 남색·금색을 유지한 두 엄지 영역 */
+.touch-controls { display: none; }
+.touch-mode .touch-controls {
+  position: absolute; z-index: 14;
+  left: max(14px, env(safe-area-inset-left)); right: max(14px, env(safe-area-inset-right));
+  bottom: calc(90px + env(safe-area-inset-bottom));
+  display: flex; align-items: flex-end; justify-content: space-between; gap: 12px;
+  pointer-events: none; user-select: none; -webkit-user-select: none;
+}
+.touch-pad { display: grid; grid-template-columns: repeat(3, 50px); grid-template-rows: repeat(2, 52px); gap: 6px; }
+.touch-key, .touch-interact {
+  pointer-events: auto; touch-action: none; -webkit-touch-callout: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid rgba(216, 180, 90, 0.55); border-radius: 15px;
+  background: rgba(10, 20, 32, 0.9); color: var(--gold-strong);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+}
+.touch-key span { font-size: 1.5rem; line-height: 1.05; }
+.touch-key small { font-size: 0.6rem; margin-top: 3px; }
+.touch-key--forward { grid-column: 2; }
+.touch-key--left { grid-column: 1; grid-row: 2; }
+.touch-key--backward { grid-column: 2; grid-row: 2; }
+.touch-key--right { grid-column: 3; grid-row: 2; }
+.touch-key.is-held { color: #2c220e; background: var(--gold-strong); border-color: var(--gold-strong); }
+.touch-key:disabled { opacity: 0.35; }
+.touch-help { margin-top: 8px; color: #d7deea; font-size: 0.62rem; line-height: 1.6; text-shadow: 0 1px 4px #060c16; }
+.touch-actions { display: grid; justify-items: end; gap: 10px; }
+.touch-key--run { min-height: 44px; min-width: 84px; font-size: 0.72rem; font-weight: 700; border-radius: 999px; }
+.touch-interact { width: 92px; min-height: 78px; gap: 6px; border-radius: 22px; }
+.touch-interact span { font-size: 1.4rem; }
+.touch-interact strong { font-size: 0.7rem; }
+.touch-interact:not(:disabled) { background: linear-gradient(160deg, #f0d789, #a8813a); color: #2c220e; }
+.touch-interact:disabled { color: var(--text-dim); border-color: rgba(250, 246, 236, 0.2); }
+.touch-key:focus-visible, .touch-interact:focus-visible { outline: 3px solid var(--ivory); outline-offset: 3px; }
+.controls-paused .touch-controls { visibility: hidden; pointer-events: none; }
+.touch-mode .move-hint, .touch-mode .interact-hint { display: none; }
+.touch-mode .conn-badge { left: auto; right: max(16px, env(safe-area-inset-right)); bottom: calc(61px + env(safe-area-inset-bottom)); pointer-events: none; }
+.touch-mode .chat-bar input { font-size: 16px; } /* iOS 입력 시 자동 확대 방지 */
 
 .move-hint {
   font-size: 0.7rem; color: var(--text-dim);
@@ -447,13 +487,41 @@ a { color: var(--gold-strong); }
 
 /* ============ 반응형 ============ */
 @media (max-width: 760px) {
-  .hud--top { flex-direction: column; align-items: stretch; padding: 10px; gap: 8px; }
+  .hud--top { flex-direction: column; align-items: stretch; padding: calc(10px + env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 10px max(10px, env(safe-area-inset-left)); gap: 8px; }
   .hud__brand { align-self: flex-start; }
-  .hud__tabs { justify-content: flex-start; }
-  .tab-btn span { display: none; }          /* 아이콘만 남겨 공간 절약 */
+  .hud__cross { width: 28px; height: 28px; }
+  .hud__brand { padding: 6px 12px 6px 8px; }
+  .hud__tabs { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+  .tab-btn { flex-direction: column; justify-content: center; gap: 3px; padding: 6px 2px; min-height: 48px; }
+  .tab-btn span { display: block; font-size: 0.6rem; }
+  .heading-hud { top: calc(128px + env(safe-area-inset-top)); font-size: 0.68rem; padding: 5px 12px; }
+  .toast { top: calc(164px + env(safe-area-inset-top)); font-size: 0.75rem; }
+  .hud--bottom { padding: 8px max(10px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
+  .chat-bar__name { max-width: 72px; font-size: 0.7rem; }
+  .chat-bar__send, .icon-btn { min-width: 44px; min-height: 44px; }
+  .side-panel__head { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .side-panel__body { padding-bottom: max(18px, env(safe-area-inset-bottom)); }
   .move-hint { display: none; }
   .conn-badge { bottom: 76px; }
   .entry__card { padding: 22px 18px 18px; }
+  .entry { place-items: start center; }
+  .comment-form input { font-size: 16px; }
+}
+@media (max-height: 500px) and (orientation: landscape) {
+  .touch-mode .hud--top { flex-direction: row; padding-top: max(6px, env(safe-area-inset-top)); }
+  .touch-mode .hud__brand { flex-shrink: 0; }
+  .touch-mode .hud__tabs { display: flex; flex-wrap: nowrap; gap: 4px; }
+  .touch-mode .tab-btn { min-width: 44px; min-height: 44px; padding: 5px 8px; }
+  .touch-mode .tab-btn span { display: none; }
+  .touch-mode .heading-hud { top: calc(64px + env(safe-area-inset-top)); }
+  .touch-mode .conn-badge { top: calc(64px + env(safe-area-inset-top)); bottom: auto; }
+  .touch-mode .toast { top: calc(100px + env(safe-area-inset-top)); }
+  .touch-mode .touch-controls { bottom: calc(74px + env(safe-area-inset-bottom)); }
+  .touch-mode .touch-pad { grid-template-columns: repeat(3, 46px); grid-template-rows: repeat(2, 44px); gap: 4px; }
+  .touch-mode .touch-help { display: none; }
+  .touch-mode .touch-actions { display: flex; align-items: flex-end; gap: 10px; }
+  .touch-mode .touch-interact { min-height: 64px; }
+  .touch-mode .hud--bottom { padding-top: 4px; padding-bottom: max(6px, env(safe-area-inset-bottom)); }
 }
 @media (prefers-reduced-motion: reduce) {
   * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
