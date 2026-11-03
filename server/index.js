@@ -67,7 +67,7 @@ const WORSHIP_SCHEDULE = [
 const OFFICIAL_LINKS = {
   site: 'https://yfgc.fgtv.com/y2/02.asp',
   youtube: 'https://www.youtube.com/@YFGCFGTV',
-  youtubeLiveEmbed: 'https://www.youtube.com/embed/live_stream?channel=UCa-36V2wccHkTQ0SUziSn0A',
+  youtubeLiveEmbed: 'https://www.youtube.com/embed/videoseries?list=PLaMcIb0DJ7THbXrf6TR6fbUu6LmyRtc_L',
   address: '서울특별시 영등포구 국회대로 76길 15 (여의도동 11번지)',
   tel: '02-6181-9191',
 };
