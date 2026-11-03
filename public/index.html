@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="description" content="여의도순복음교회를 테마로 한 3D 힐링 공간. 가상 예배당을 함께 걸으며 묵상하고, 기도하고, 위로를 나눕니다." />
+  <title>빛의 성전 — 순복음 힐링 3D</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛪</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+
+  <!-- ========== 입장 화면 ========== -->
+  <section id="entry" class="entry">
+    <div class="entry__backdrop" aria-hidden="true"></div>
+    <div class="entry__card">
+      <div class="entry__badge">여의도순복음교회 테마 · 비공식 힐링 앱</div>
+      <h1 class="entry__title">빛의 성전<span class="entry__title-sub">LIGHT SANCTUARY</span></h1>
+      <p class="entry__desc">
+        함께 걷는 3D 예배당에서 묵상하고, 기도하고, 위로를 나누세요.<br />
+        입장하면 다른 성도들의 아바타와 실시간으로 만날 수 있습니다.
+      </p>
+
+      <form id="entryForm" class="entry__form" autocomplete="off">
+        <label class="field">
+          <span class="field__label">이름 (닉네임)</span>
+          <input id="nameInput" name="name" type="text" maxlength="20" placeholder="예: 은혜로운아침" required />
+        </label>
+
+        <div class="field">
+          <span class="field__label">아바타 빛깔</span>
+          <div id="colorSwatches" class="swatches" role="radiogroup" aria-label="아바타 색상 선택"></div>
+        </div>
+
+        <button type="submit" class="btn btn--gold btn--block">성전에 입장하기 →</button>
+      </form>
+
+      <ul class="entry__features">
+        <li>🚶 가상 대성전 산책</li>
+        <li>📺 예배 생중계 시청</li>
+        <li>📖 날마다 새 말씀 묵상</li>
+        <li>🕯️ 기도 촛불 켜기</li>
+        <li>💬 간증·나눔 커뮤니티</li>
+      </ul>
+      <p class="entry__disclaimer">
+        본 앱은 여의도순복음교회를 주제로 한 <strong>비공식</strong> 팬·힐링 프로젝트입니다.
+        공식 예배 안내와 생중계는 <a id="officialLinkEntry" href="https://yfgc.fgtv.com" target="_blank" rel="noopener">교회 공식 홈페이지</a>를 확인하세요.
+      </p>
+    </div>
+  </section>
+
+  <!-- ========== 메인 앱 (입장 후) ========== -->
+  <div id="app" class="app hidden" aria-hidden="true">
+    <canvas id="scene" class="scene"></canvas>
+
+    <!-- 상단 HUD -->
+    <header class="hud hud--top">
+      <div class="hud__brand">
+        <span class="hud__cross">✝</span>
+        <div>
+          <strong>빛의 성전</strong>
+          <small id="onlineCount">접속자 1명</small>
+        </div>
+      </div>
+
+      <nav class="hud__tabs" aria-label="콘텐츠 패널 열기">
+        <button class="tab-btn" data-panel="worship">📺 <span>예배중계</span></button>
+        <button class="tab-btn" data-panel="verse">📖 <span>묵상</span></button>
+        <button class="tab-btn" data-panel="prayer">🕯️ <span>기도</span></button>
+        <button class="tab-btn" data-panel="community">💬 <span>나눔</span></button>
+        <button class="tab-btn" data-panel="info">ℹ️ <span>안내</span></button>
+      </nav>
+    </header>
+
+    <!-- 토스트 알림 -->
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <!-- 하단: 이동 안내 + 채팅 -->
+    <footer class="hud hud--bottom">
+      <div class="move-hint" id="moveHint">
+        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · 마우스 드래그 시점 · <kbd>Enter</kbd> 채팅
+      </div>
+      <form id="chatForm" class="chat-bar" autocomplete="off">
+        <span id="chatNameTag" class="chat-bar__name">나</span>
+        <input id="chatInput" type="text" maxlength="200" placeholder="따뜻한 한마디를 남겨보세요…" aria-label="채팅 입력" />
+        <button type="submit" class="chat-bar__send" aria-label="보내기">➤</button>
+      </form>
+    </footer>
+
+    <!-- 사이드 패널 (공통) -->
+    <aside id="sidePanel" class="side-panel" aria-hidden="true" aria-label="콘텐츠 패널">
+      <div class="side-panel__head">
+        <h2 id="panelTitle">패널</h2>
+        <button id="panelClose" class="icon-btn" aria-label="닫기">✕</button>
+      </div>
+      <div id="panelBody" class="side-panel__body"></div>
+    </aside>
+    <div id="panelScrim" class="panel-scrim hidden"></div>
+
+    <!-- 연결 상태 배지 -->
+    <div id="connBadge" class="conn-badge">연결 중…</div>
+  </div>
+
+  <script type="module" src="/js/main.js"></script>
+</body>
+</html>
