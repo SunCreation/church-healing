@@ -461,7 +461,7 @@ function tick() {
   const moving = moveVec.lengthSq() > 0;
   if (moving) {
     moveVec.normalize();
-    const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 7.2 : 4.6;
+    const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 8.2 : 5.8;
     player.position.x += moveVec.x * speed * dt;
     player.position.z += moveVec.z * speed * dt;
     resolveCollisions(player.position);

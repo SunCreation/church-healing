@@ -323,6 +323,21 @@ export function buildSanctuary(scene) {
   entryGlow.position.set(0, 5.2, frontZ - 0.28);
   root.add(entryGlow);
 
+  /* 게시판 상단 표지(외부) + 실내 안내문 */
+  const boardSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(6.6, 1.35),
+    new THREE.MeshBasicMaterial({ map: wallTextTexture('공식 소식 게시판'), transparent: true, depthWrite: false })
+  );
+  boardSign.position.set(-10.4, 5.05, D / 2 + 0.34);
+  root.add(boardSign);
+  const insideSign = new THREE.Mesh(
+    new THREE.PlaneGeometry(5.8, 1.1),
+    new THREE.MeshBasicMaterial({ map: wallTextTexture('← 공식 소식'), transparent: true, depthWrite: false })
+  );
+  insideSign.position.set(-5.3, 6.8, D / 2 - 0.1);
+  insideSign.rotation.y = Math.PI;
+  root.add(insideSign);
+
   /* ========== 공식 소식 게시판 (마당 왼쪽) ========== */
   const boardBacking = box(7.8, 4.7, 0.25, MAT.woodDark, -10.4, 2.15, D / 2 + 0.38, { shadow: true });
   root.add(boardBacking);
