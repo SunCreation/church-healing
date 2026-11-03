@@ -43,3 +43,4 @@
 | ~~B-003~~ | 예배중계 "video unavailable" → 공식 LIVE 재생목록 임베드로 교체 (ADR-006) |
 | ~~B-004~~ | Google Fonts stylesheet CSP 차단 → `style-src` allowlist에 `fonts.googleapis.com` 추가 |
 | ~~B-005~~ | Neon Postgres 연동 — JSON 시드 영구 저장으로 대체 (ADR-011) |
+| ~~B-006~~ | 앞마당 게시판(공식 순복음소식) + 페우 개별 좌석 앉기, 시야 방향 동기화, 앞마당 씬 분리 없이 통합 |

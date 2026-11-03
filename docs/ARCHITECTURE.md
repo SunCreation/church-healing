@@ -50,17 +50,17 @@ church-healing/
 | 메시지 | 필드 | 비고 |
 |---|---|---|
 | `join` | `name`, `color(#rrggbb)` | 이름 20자, 색상 정규식 검증 |
-| `pos`  | `x`, `z`, `rot`, `moving` | 서버가 실내 바운드로 클램프 |
+| `pos`  | `x`, `z`, `rot`, `moving`, `y`, `seat` | 서버가 실내/앞마당 경계로 클램프, `seat`는 0..143 또는 null |
 | `chat` | `text` | 200자 제한, 전원 브로드캐스트 |
 
 서버 → 클라이언트
 
 | 메시지 | 필드 | 비고 |
 |---|---|---|
-| `welcome` | `you`, `players[]`, `candleCount` | 입장자 본인 포함 players는 자신 제외 |
+| `welcome` | `you`, `players[]`, `candleCount` | players는 본인 제외 (y/seat 포함) |
 | `join`    | `player` | 본인 제외 브로드캐스트 |
 | `leave`   | `id`, `name` | 연결 종료 시 |
-| `pos`     | `id`, `x`, `z`, `rot`, `moving` | 본인 제외, 수신 측 보간 |
+| `pos`     | `id`, `x`, `z`, `rot`, `moving`, `y`, `seat` | 본인 제외, 수신 측 보간 |
 | `chat`    | `id`, `name`, `text`, `at` | 본인 포함 전원 |
 | `candle`  | `candle{id,note,name,createdAt}` | `POST /api/candle` 경유 |
 | `error`   | `message` | 잘못된 페이로드 |
@@ -72,6 +72,7 @@ church-healing/
 | GET | `/api/health` | `{ ok, players, storage }` |
 | GET | `/api/verse` | 오늘의 말씀 (UTC 날짜 로테이션, 12절) |
 | GET | `/api/schedule` | 예배 시간표(공식 편성 요약) + `official`(링크/임베드) |
+| GET | `/api/news` | FGTV ‘순복음소식’ 10분 캐시 (`sourceUrl`/`items`) |
 | GET | `/api/posts?category=` | 목록 (최신순) |
 | POST | `/api/posts` | 생성 `{name?, category, title, body}` |
 | POST | `/api/posts/:id/like` | 공감 +1 |
@@ -93,17 +94,27 @@ church-healing/
 
 ## 3D 씬 개요
 
-- 룸 56×38×15, 단상(z<0) 쪽이 "성소", 입구(z>0) 반대편
-- 중앙 회랑(폭 3.6) + 양측 페우 8열×2, 충돌체는 AABB 목록으로 반환
+- 룸 56×38×15 + 앞마당 56×9 (입구 남쪽 z>19) — 입구 포털 아치, 앞마당 게시판, 담장, 석재 바닥
+- 중앙 회랑(폭 3.6) + 양측 페우 8열×2, 개별 지정석 144개 (`seats`)
+- 게시판은 공식 ‘순복음소식’ 목록을 FGTV 페이지에서 가져와 10분 캐시. 본문/영상 재배포 없이 공식 링크만 제공
 - 십자가: `MeshStandardMaterial(emissive)` + PointLight(맥동) + AdditiveBlending 빛줄기 콘 + 후광 Plane
-- 텍스처는 전부 `document.createElement('canvas')` 절차적 생성 (스테인드글라스/카펫/스크린/레터링) → 외부 이미지 0
+- 텍스처는 전부 `document.createElement('canvas')` 절차적 생성 (스테인드글라스/카펫/스크린/LED레터링) → 외부 이미지 0
 - 조명: Hemisphere + Directional(섀도 2048) + PointLight 2개 (십자가/필)
 
 ## 좌표/충돌 규칙
 
 - 플레이어 반경 0.55, 원–AABB 최근접점 밀어내기 + 룸 경계 클램프
-- 카메라(3인칭 오빗)도 룸 내부로 클램프 (`dims` 사용)
-- 스폰: `(0, 0, 10.5)`, 십자가 정면(-z)
+- 카메라(3인칭 오빗)도 룸 내부로 클램프 (`dims` 사용, z 상한은 앞마당까지)
+- 스폰: `(0, 0, 10.5)` — 십자가 정면(내용)
+- 앞마당 경계: 좌우 담장/기둥, 입구 포털 기둥(`openingHalf` 이내만 통과) — 출입 가능
+- 페우 좌석: 근접 시 `F`로 앉기/일어서기. 앉으면 아바타를 좌석면(y≈0.74)에 가깝게 내리고(루트 y≈0.28), 이동/물리 충돌이 비활성화. 좌석 선점 상태는 WS `pos`(`seat`)로 동기화, 리모트 아바타 y도 보간
+
+## 예배당 밖 게시판
+
+- 위치: 남쪽 입구 앞마당 좌측 벽걸이형 게시판 (플레이어 z≈19.5, x≈-10.4)
+- `GET /api/news` → FGTV ‘순복음소식’(`f5/01_listview.asp`)을 10분 캐시로 HTML 파싱, `videoId`/날짜/제목만 반환
+- 클라이언트는 게시판 캔버스에 날짜/제목을 그려 넣고, `F`로 상세 패널(`news`) 열기
+- 본문/영상은 재배포하지 않고 공식 페이지(`f5/01.asp?selected_num=`)로 연결
 
 ## 보안/프라이버시
 

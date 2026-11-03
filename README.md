@@ -6,6 +6,9 @@
 
 ![입장 화면](docs/screenshots/00_entry.png)
 ![3D 예배당](docs/screenshots/01_sanctuary.png)
+![앞마당과 예배당 입구](docs/screenshots/09_front_yard.png)
+![페우에 앉은 모습](docs/screenshots/07_sit.png)
+![공식 소식 게시판](docs/screenshots/08_news_panel.png)
 
 ## 빠른 시작
 
@@ -42,7 +45,10 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 
 ## 주요 기능
 
-- 🚶 3D 대성전 탐험 (WASD/방향키 이동, 마우스 드래그 시점, Shift 달리기)
+- 🚶 3D 대성전 탐험 + 앞마당 산책 (WASD/방향키 이동, 마우스 드래그 시야)
+- 🪑 페우 좌석에 앉기/일어서기 (`F`), 개별 좌석 1칸씩 선점
+- 👀 다른 사람의 아바타가 바라보는 방향까지 실시간 동기화
+- 📋 앞마당 게시판 — FGTV ‘순복음소식’ 최신 소식 (제목/날짜/공식 링크)
 - 👥 실시간 아바타 동기화 + 채팅(Enter) + 아바타 위 말풍선
 - 📺 공식 예배 생중계 임베드 + 예배 시간표
 - 📖 날짜별 말씀 묵상 + SOAP 가이드 + 로컬 묵상 노트
