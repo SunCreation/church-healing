@@ -1,0 +1,18 @@
+# Render Blueprint — 무료 Web Service + Neon Postgres
+# DATABASE_URL / DATABASE_URL_UNPOOLED는 Render Dashboard에서 입력 (render.yaml에는 비밀 없음)
+services:
+  - type: web
+    name: church-healing
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false

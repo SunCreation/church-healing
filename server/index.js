@@ -4,35 +4,86 @@
  * - WebSocket(`/ws`): 3D 공간 실시간 아바타 위치 동기화 + 채팅 + 촛불 브로드캐스트
  *
  * 실행: npm start  → http://localhost:8787
+ * DATABASE_URL이 있으면 Neon/Lakebase Postgres, 없으면 로컬 JSON 저장소.
  */
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
+
+// 로컬 개발: .env.local / .env 로드 (운영에서는 플랫폼이 환경변수를 주입)
+if (!process.env.DATABASE_URL) {
+  for (const file of ['.env.local', '.env']) {
+    try {
+      if (fs.existsSync(file)) process.loadEnvFile(file);
+    } catch (e) {
+      console.warn(`${file} 로드 실패:`, e.message);
+    }
+  }
+}
+
 const express = require('express');
 const { WebSocketServer } = require('ws');
-const { load, save } = require('./db');
+const { createStore, uid } = require('./store');
 
 const PORT = process.env.PORT || 8787;
 const ROOT = path.join(__dirname, '..');
 
-const db = load();
-let candleCount = 0;
-let saveTimer = null;
-/** 변경 시 500ms 디바운스로 디스크에 저장 */
-function persist() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => save(db), 500);
-}
+const store = createStore();
 
-// ---------- Express ----------
+// ---------- Express 공통 ----------
 const app = express();
+app.disable('x-powered-by');
+app.set('trust proxy', 1); // Render 등 리버스 프록시 뒤에서 실제 클라이언트 IP 사용
 app.use(express.json({ limit: '256kb' }));
+
+// 보안 헤더 (CSP는 YouTube 예배 영상 임베드만 허용)
+app.use((_req, res, next) => {
+  res.set('X-Content-Type-Options', 'nosniff');
+  res.set('X-Frame-Options', 'SAMEORIGIN');
+  res.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.set(
+    'Content-Security-Policy',
+    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; script-src 'self'; connect-src 'self' ws: wss:; frame-src https://www.youtube.com https://www.youtube-nocookie.com; frame-ancestors 'self'; object-src 'none'; base-uri 'self';"
+  );
+  next();
+});
 
 // three.js 모듈을 번들러 없이 브라우저에 제공
 app.use('/vendor/three', express.static(path.join(ROOT, 'node_modules', 'three', 'build')));
 app.use(express.static(path.join(ROOT, 'public')));
 
-const uid = (p) => `${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
+/* ---------- 간이 레이트리밋 (메모리, 단일 인스턴스 기준) ---------- */
+const rateBuckets = new Map();
+/** 1분 창 고정; 키별로 max회 허용 */
+function rateLimit(maxPerMinute, label) {
+  return (req, res, next) => {
+    const now = Date.now();
+    const window = Math.floor(now / 60000);
+    const key = `${label}:${window}:${req.ip}`;
+    const count = (rateBuckets.get(key) || 0) + 1;
+    rateBuckets.set(key, count);
+    if (rateBuckets.size > 5000) {
+      // 오래된 창 정리
+      for (const k of rateBuckets.keys()) {
+        const w = Number(k.split(':')[1]);
+        if (w < window - 1) rateBuckets.delete(k);
+      }
+    }
+    if (count > maxPerMinute) {
+      res.set('Retry-After', '60');
+      return res.status(429).json({ error: '요청이 너무 많습니다. 잠시 후에 다시 시도해 주세요.' });
+    }
+    next();
+  };
+}
+const limitWrites = rateLimit(60, 'writes');
+const limitCandle = rateLimit(15, 'candle');
+const limitPosts = rateLimit(30, 'posts');
+const limitApi = rateLimit(600, 'api');
+
 const clampStr = (s, max) => String(s ?? '').trim().slice(0, max);
+const asyncHandle = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 
 /** 오늘의 말씀 (날짜 기반 로테이션) */
 const VERSES = [
@@ -72,7 +123,7 @@ const OFFICIAL_LINKS = {
   tel: '02-6181-9191',
 };
 
-app.get('/api/health', (_req, res) => res.json({ ok: true, players: players.size }));
+app.get('/api/health', (_req, res) => res.json({ ok: true, players: players.size, storage: store.name }));
 
 app.get('/api/verse', (_req, res) => {
   const now = new Date();
@@ -82,14 +133,12 @@ app.get('/api/verse', (_req, res) => {
 
 app.get('/api/schedule', (_req, res) => res.json({ worship: WORSHIP_SCHEDULE, official: OFFICIAL_LINKS }));
 
-app.get('/api/posts', (req, res) => {
+app.get('/api/posts', limitApi, asyncHandle(async (req, res) => {
   const category = clampStr(req.query.category, 20);
-  let list = [...db.posts].sort((a, b) => b.createdAt - a.createdAt);
-  if (category && category !== '전체') list = list.filter((p) => p.category === category);
-  res.json(list);
-});
+  res.json(await store.listPosts(category));
+}));
 
-app.post('/api/posts', (req, res) => {
+app.post('/api/posts', limitPosts, asyncHandle(async (req, res) => {
   const { name, category, title, body } = req.body || {};
   const t = clampStr(title, 120);
   const b = clampStr(body, 4000);
@@ -100,40 +149,31 @@ app.post('/api/posts', (req, res) => {
     name: clampStr(name, 30) || '순복음성도',
     title: t,
     body: b,
-    likes: 0,
-    comments: [],
     createdAt: Date.now(),
   };
-  db.posts.push(post);
-  persist();
-  res.status(201).json(post);
-});
+  res.status(201).json(await store.createPost(post));
+}));
 
-app.post('/api/posts/:id/like', (req, res) => {
-  const post = db.posts.find((p) => p.id === req.params.id);
-  if (!post) return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
-  post.likes += 1;
-  persist();
-  res.json({ id: post.id, likes: post.likes });
-});
+app.post('/api/posts/:id/like', limitWrites, asyncHandle(async (req, res) => {
+  const result = await store.likePost(req.params.id);
+  if (!result) return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
+  res.json(result);
+}));
 
-app.post('/api/posts/:id/comments', (req, res) => {
-  const post = db.posts.find((p) => p.id === req.params.id);
-  if (!post) return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
+app.post('/api/posts/:id/comments', limitPosts, asyncHandle(async (req, res) => {
   const body = clampStr(req.body?.body, 1000);
   if (!body) return res.status(400).json({ error: '댓글 내용은 필수입니다.' });
   const comment = { id: uid('cmt'), name: clampStr(req.body?.name, 30) || '순복음성도', body, createdAt: Date.now() };
-  post.comments.push(comment);
-  persist();
-  res.status(201).json(comment);
-});
+  const saved = await store.addComment(req.params.id, comment);
+  if (!saved) return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
+  res.status(201).json(saved);
+}));
 
-app.get('/api/prayers', (_req, res) => {
-  const list = [...db.prayers].sort((a, b) => b.createdAt - a.createdAt).slice(0, 100);
-  res.json(list);
-});
+app.get('/api/prayers', limitApi, asyncHandle(async (_req, res) => {
+  res.json(await store.listPrayers());
+}));
 
-app.post('/api/prayers', (req, res) => {
+app.post('/api/prayers', limitWrites, asyncHandle(async (req, res) => {
   const body = clampStr(req.body?.body, 1000);
   if (!body) return res.status(400).json({ error: '기도제목을 입력해 주세요.' });
   const anonymous = Boolean(req.body?.anonymous);
@@ -144,20 +184,18 @@ app.post('/api/prayers', (req, res) => {
     body,
     createdAt: Date.now(),
   };
-  db.prayers.push(prayer);
-  persist();
-  res.status(201).json(prayer);
-});
+  res.status(201).json(await store.createPrayer(prayer));
+}));
 
 /** 촛불 켜기 — REST로 접수받아 WebSocket으로 전 사용자에게 브로드캐스트 */
-app.post('/api/candle', (req, res) => {
+app.post('/api/candle', limitCandle, asyncHandle(async (req, res) => {
   const note = clampStr(req.body?.note, 200);
   const name = clampStr(req.body?.name, 30) || '익명';
   const candle = { id: uid('cndl'), note, name, createdAt: Date.now() };
-  candleCount += 1;
-  broadcast({ t: 'candle', candle });
-  res.status(201).json(candle);
-});
+  const count = await store.addCandle(candle);
+  broadcast({ t: 'candle', candle, candleCount: count });
+  res.status(201).json({ ...candle, candleCount: count });
+}));
 
 // ---------- HTTP + WebSocket ----------
 const server = http.createServer(app);
@@ -179,10 +217,12 @@ function broadcast(payload, exceptId = null) {
   }
 }
 
-const SPAWN = { x: 0, z: 14 }; // 입구 쪽에서 시작
+const SPAWN = { x: 0, z: 10.5 };
 
 wss.on('connection', (ws) => {
   let joined = null;
+  // 채팅 레이트리밋: 연결당 10초에 5회
+  const chatWindow = { started: 0, count: 0 };
 
   ws.on('message', (raw) => {
     let msg;
@@ -199,7 +239,11 @@ wss.on('connection', (ws) => {
       joined = player;
       ws.meta = { id: player.id };
       players.set(player.id, player);
-      send(ws, { t: 'welcome', you: player, players: [...players.values()].filter((p) => p.id !== player.id), candleCount });
+      store.countCandles()
+        .then((candleCount) => {
+          send(ws, { t: 'welcome', you: player, players: [...players.values()].filter((p) => p.id !== player.id), candleCount });
+        })
+        .catch(() => send(ws, { t: 'welcome', you: player, players: [], candleCount: 0 }));
       broadcast({ t: 'join', player }, player.id);
       console.log(`[+] ${name} 입장 (현재 ${players.size}명)`);
       return;
@@ -219,10 +263,18 @@ wss.on('connection', (ws) => {
     }
 
     if (msg.t === 'chat') {
+      const now = Date.now();
+      if (now - chatWindow.started > 10000) {
+        chatWindow.started = now;
+        chatWindow.count = 0;
+      }
+      chatWindow.count += 1;
+      if (chatWindow.count > 5) {
+        return send(ws, { t: 'error', message: '채팅은 잠깐 쉬었다가 보내주세요.' });
+      }
       const text = clampStr(msg.text, 200);
       if (!text) return;
       broadcast({ t: 'chat', id: joined.id, name: joined.name, text, at: Date.now() });
-      return;
     }
   });
 
@@ -236,6 +288,23 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
-server.listen(PORT, () => {
-  console.log(`\n빛의 성전 서버 실행 중 → http://localhost:${PORT}\n`);
+// 알 수 없는 API 라우트는 JSON 404
+app.use('/api', (_req, res) => res.status(404).json({ error: 'Not found' }));
+
+// 에러 핸들러: 내부 정보를 노출하지 않음
+app.use((err, _req, res, _next) => {
+  console.error('unhandled error:', err);
+  res.status(500).json({ error: '서버 오류가 발생했습니다.' });
 });
+
+store
+  .init()
+  .then(() => {
+    server.listen(PORT, () => {
+      console.log(`\n빛의 성전 서버 실행 중 → http://localhost:${PORT}\n`);
+    });
+  })
+  .catch((err) => {
+    console.error('저장소 초기화 실패:', err);
+    process.exit(1);
+  });

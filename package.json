@@ -1,15 +1,22 @@
 {
   "name": "church-healing",
   "version": "0.1.0",
-  "description": "빛의 성전 — 여의도순복음교회 테마 3D 힐링 공간 (멀티플레이)",
+  "description": "\ube5b\uc758 \uc131\uc804 \u2014 \uc5ec\uc758\ub3c4\uc21c\ubcf5\uc74c\uad50\ud68c \ud14c\ub9c8 3D \ud790\ub9c1 \uacf5\uac04 (\uba40\ud2f0\ud50c\ub808\uc774)",
   "type": "commonjs",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "build": "node scripts/build.mjs"
   },
   "dependencies": {
+    "@neon/config": "^1.10.0",
+    "@neon/env": "^1.6.8",
     "express": "^4.19.2",
+    "pg": "^8.23.1",
     "three": "^0.166.0",
     "ws": "^8.18.0"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }
