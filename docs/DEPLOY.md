@@ -43,6 +43,31 @@ git push -u origin main
 - `https://<service>.onrender.com/api/health` → `{"ok":true,"storage":"postgres", ...}`
 - 3D 화면 렌더, 채팅, 게시글 작성 → 재시작 후 유지되는지 확인
 
+### 5. GitHub Actions로 5분 간격 상태 확인 (선택)
+
+`.github/workflows/render-keepalive.yml`이 매 5분(UTC 기준 매시 2·7·12·…·57분)에 `/api/health`를 호출합니다. Render API 키나 DB 비밀번호는 필요하지 않습니다.
+
+1. GitHub 저장소 → **Settings → Secrets and variables → Actions → Variables** → **New repository variable**
+2. 이름: `RENDER_HEALTH_URL`
+3. 값: Render Dashboard에서 복사한 실제 배포 주소 뒤에 `/api/health`를 붙입니다.
+   - 예시 형식: `https://<실제 서비스 주소>.onrender.com/api/health`
+   - 서비스 이름만으로 주소를 추측하지 마세요. 커스텀 도메인의 HTTPS 주소도 사용 가능합니다.
+4. **Actions → Render Keep Alive → Run workflow**로 수동 실행해 성공을 확인합니다.
+
+CLI로 설정하려면:
+
+```bash
+gh variable set RENDER_HEALTH_URL --repo SunCreation/church-healing \
+  --body 'https://<실제 서비스 주소>.onrender.com/api/health'
+gh workflow run render-keepalive.yml --repo SunCreation/church-healing
+```
+
+- URL 미설정 시 예약 작업은 건너뛰고, 수동 실행은 설정 오류를 표시합니다.
+- HTTPS 요청 및 JSON의 `ok: true`를 검사합니다. 기동 중이거나 HTTP 오류이면 최대 3회 요청(회당 최대 60초, 재시도 간격 5초)하고, 전체 작업은 최대 4분으로 제한합니다.
+- GitHub 예약 작업은 지연·누락될 수 있으므로 **정확한 5분 실행이나 무슬립을 보장하지 않습니다.** 공개 저장소에서 60일간 활동이 없으면 예약 작업이 비활성화될 수 있습니다.
+- Render가 계속 실행되면 월 750시간의 무료 인스턴스 시간을 사용합니다. 같은 워크스페이스의 다른 무료 서비스와 합산되므로 한도를 확인하세요.
+- 중단하려면 Actions의 해당 워크플로를 **Disable workflow** 하거나 `RENDER_HEALTH_URL` 변수를 삭제합니다.
+
 ## 보안 체크리스트 (현재 상태)
 - [x] `.env.local` git 배제, 코드에 비밀 없음
 - [x] SQL 파라미터 바인딩 (`pg`)

@@ -123,3 +123,10 @@ PRD/문서화 체계 추가 + 예배중계 임베드 교체 + 초기 3D 렌더�
 - 세로/가로 조작판, 44px 이상 버튼, 상단 메뉴 라벨, safe-area 및 VisualViewport(키보드/주소창 높이) 대응
 - 자동 테스트: `tests/touch-controls.test.cjs` 6건 추가(전체 11건). `scripts/smoke-mobile.py`로 Chromium 멀티터치·이동/회전/달리기·착석·게시판·입력 중단·가로 배치·PC 회귀 확인
 - 실기기(iPhone/Android) 및 iOS 소프트키보드 검증은 미실시. 모바일 에뮬레이션 스크린샷 `12_mobile_controls.png`/`13_mobile_landscape.png` 추가
+
+### 2026-11-03 (Render 주기 상태 요청)
+- GitHub Actions `Render Keep Alive`: 5분 간격 예약 + 수동 실행, HTTPS `/api/health`와 JSON `ok: true` 검사
+- 요청당 60초·최대 3회, 작업 전체 4분 제한. 체크아웃/외부 액션/토큰 권한 없이 실행
+- 실제 Render URL은 저장소 변수 `RENDER_HEALTH_URL`로 설정. 미설정 예약은 건너뛰고 수동 실행은 명확한 오류 표시
+- 배포 문서에 변수 설정/수동 실행/중단 및 예약 지연·60일 비활성화·Render 월 무료시간 한도 안내 추가
+- 검증: 워크플로 YAML 파싱·bash 문법 및 정상/미설정/HTTP 오류/기동 HTML 응답 테스트 통과(`npm test` 전체 15건). 실제 배포 URL은 아직 확인되지 않아 변수 등록·원격 요청 검증은 대기
