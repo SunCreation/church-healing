@@ -212,6 +212,16 @@ a { color: var(--gold-strong); }
   padding: 12px 16px max(14px, env(safe-area-inset-bottom));
   background: linear-gradient(0deg, rgba(6, 12, 22, 0.85), transparent);
 }
+.heading-hud {
+  position: absolute; z-index: 12; top: 74px; left: 50%; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.78rem; font-weight: 700; color: var(--ivory);
+  background: rgba(10, 20, 32, 0.72); border: 1px solid rgba(216, 180, 90, 0.42);
+  border-radius: 999px; padding: 6px 14px; backdrop-filter: blur(6px);
+  letter-spacing: 0.02em; user-select: none; pointer-events: none; white-space: nowrap;
+}
+.heading-hud__arrow { color: var(--gold-strong); font-size: 1rem; display: inline-block; transition: transform 0.18s ease; }
+
 .interact-hint {
   position: absolute; z-index: 12; left: 50%; transform: translate(-50%, 8px); bottom: 118px;
   font-size: 0.9rem; font-weight: 700; color: var(--gold-strong);

@@ -476,10 +476,14 @@ export function buildSanctuary(scene) {
   // 페우 좌석 목록 — 개별 지정석: 좌측/우측 각 8열 × 9석 = 144석
   const seats = [];
   let seatId = 0;
+  // 좌석 간격을 넓혀 앞뒤로 이동 가능하게: 5.0m부터 2.0m 간격, 단계적으로 착석 구간 확장
+  const pewStart = 5.0;
+  const pewStep = 2.0;
+  const pewDepth = 0.8;
   for (const side of [-1, 1]) {
     const cx = side * 8.2;
     for (let row = 0; row < 8; row++) {
-      const z = 3.6 - row * 1.5;
+      const z = pewStart - row * pewStep;
       for (let col = 0; col < 9; col++) {
         seats.push({ id: seatId++, side, row, col, x: cx + (-3.84 + col * 0.96), y: 0.74, z, face: Math.PI });
       }
@@ -487,8 +491,8 @@ export function buildSanctuary(scene) {
   }
   for (const side of [-1, 1]) {
     const cx = side * 8.2;
-    for (let i = 0; i < 8; i++) {
-      const z = 3.6 - i * 1.5;
+    for (let row = 0; row < 8; row++) {
+      const z = 5.0 - row * 2.0;
       const y = 0.62;
       const seat = new THREE.Mesh(pewGeoSeat, MAT.wood); seat.position.set(cx, y, z);
       const base = new THREE.Mesh(pewGeoBase, MAT.woodDark); base.position.set(cx, 0.28, z + 0.08);
@@ -496,9 +500,9 @@ export function buildSanctuary(scene) {
       const endL = new THREE.Mesh(pewGeoEnd, MAT.woodDark); endL.position.set(cx - 4.85, 0.72, z);
       const endR = new THREE.Mesh(pewGeoEnd, MAT.woodDark); endR.position.set(cx + 4.85, 0.72, z);
       for (const m of [seat, base, back, endL, endR]) { m.castShadow = true; m.receiveShadow = true; root.add(m); }
+      // 좌석 열 단위 충돌체 — 열 사이 통로는 비워둠
+      obstacles.push({ minX: cx - 5.1, maxX: cx + 5.1, minZ: z - 0.45, maxZ: z + 0.45 });
     }
-    // 페우 구역 전체를 하나의 충돌체로
-    obstacles.push({ minX: cx - 5.1, maxX: cx + 5.1, minZ: 3.6 + 0.5 - 8 * 1.5, maxZ: 3.6 + 0.7 });
   }
 
   /* ========== 찬양대석(무대 뒤 계단식) ========== */

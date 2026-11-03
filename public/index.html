@@ -79,13 +79,19 @@
     <!-- 토스트 알림 -->
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
+    <!-- 현재 바라보는 방향 -->
+    <div id="headingHud" class="heading-hud" aria-live="polite" title="현재 멤버/아바타가 바라보는 방향">
+      <span id="headingArrow" class="heading-hud__arrow">↑</span>
+      <span id="headingText">성소 향함</span>
+    </div>
+
     <!-- 상호작용 힌트 -->
     <div id="interactHint" class="interact-hint hidden" aria-live="polite">F</div>
 
     <!-- 하단: 이동 안내 + 채팅 -->
     <footer class="hud hud--bottom">
       <div class="move-hint" id="moveHint">
-        <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 이동 · 마우스 드래그 시점 · <kbd>Enter</kbd> 채팅
+        <kbd>↑</kbd> 앞으로 이동 · <kbd>←</kbd><kbd>→</kbd> 방향 전환 · 마우스 드래그 ←/→ 시야 · <kbd>F</kbd> 앉기/일어서기 · <kbd>Enter</kbd> 채팅
       </div>
       <form id="chatForm" class="chat-bar" autocomplete="off">
         <span id="chatNameTag" class="chat-bar__name">나</span>

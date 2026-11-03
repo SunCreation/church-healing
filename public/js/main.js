@@ -343,8 +343,7 @@ function onResize() {
   three.renderer.setSize(innerWidth, innerHeight);
 }
 
-/* ---------- 카메라 오빗(드래그) ---------- */
-let orbitYaw = 0;        // 0 = 아바타 뒤쪽
+/* ---------- 카메라(뒤에서 바라보는 3인칭; 횡단 드래그로 방향 전환) ---------- */
 let orbitPitch = 0.46;
 let dragging = false;
 let lastX = 0, lastY = 0;
@@ -357,14 +356,38 @@ canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
   const dx = e.clientX - lastX, dy = e.clientY - lastY;
   lastX = e.clientX; lastY = e.clientY;
-  orbitYaw -= dx * 0.0052;
   orbitPitch = THREE.MathUtils.clamp(orbitPitch + dy * 0.004, 0.18, 1.15);
+  if (three && mySeat === null) {
+    // 가로 드래그 = 시야(아바타) 방향 전환
+    three.player.rotation.y -= dx * 0.0052;
+    updateHeading();
+  }
 });
 const endDrag = () => { dragging = false; };
 canvas.addEventListener('pointerup', endDrag);
 canvas.addEventListener('pointercancel', endDrag);
 
-/* ---------- 키보드 ---------- */
+/* ============ 현재 방향 표시 ============ */
+const headingHud = $('#headingHud');
+const headingArrow = $('#headingArrow');
+const headingText = $('#headingText');
+const RAD_TO_DEG = 180 / Math.PI;
+function normalizeYaw(rad) {
+  let d = (rad + Math.PI) % (Math.PI * 2);
+  if (d < 0) d += Math.PI * 2;
+  return d - Math.PI;
+}
+function updateHeading() {
+  if (!three) return;
+  const delta = normalizeYaw(three.player.rotation.y - Math.PI);
+  const deg = Math.abs(Math.round(delta * RAD_TO_DEG));
+  const sign = delta >= 0 ? '←' : (delta < 0 ? '→' : '');
+  const label = deg <= 35 ? '성소 향함' : deg <= 145 ? '측면' : '후면';
+  headingText.textContent = `${label} · ${deg}° ${sign}`;
+  headingArrow.style.transform = `rotate(${-delta * RAD_TO_DEG}deg)`;
+}
+
+/* ============ 키보드 ============ */
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 addEventListener('keydown', (e) => {
   if (TYPING_TAGS.has(document.activeElement?.tagName)) {
@@ -414,7 +437,6 @@ function resolveCollisions(pos) {
 /* ---------- 프레임 루프 ---------- */
 const camOffset = new THREE.Vector3();
 const moveVec = new THREE.Vector3();
-const UP = new THREE.Vector3(0, 1, 0);
 
 function tick() {
   requestAnimationFrame(tick);
@@ -422,15 +444,18 @@ function tick() {
   const t = three.clock.elapsedTime;
   const { camera, renderer, scene, player, sanctuary } = three;
 
-  /* 이동 입력 (카메라 기준; 앉아 있으면 이동 불가) */
-  const forward = new THREE.Vector3(-Math.sin(orbitYaw), 0, -Math.cos(orbitYaw)).normalize();
-  const right = new THREE.Vector3().crossVectors(forward, UP).normalize();
+  /* 방향 전환 + 앞으로 이동 (이동은 바라보는 방향으로만, 좌우는 회전) */
+  const TURN_SPEED = 2.4;
+  if (mySeat === null) {
+    if (keys.has('ArrowLeft') || keys.has('KeyA')) player.rotation.y += TURN_SPEED * dt;
+    if (keys.has('ArrowRight') || keys.has('KeyD')) player.rotation.y -= TURN_SPEED * dt;
+  }
+  const yaw = player.rotation.y;
+  const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw)).normalize();
   moveVec.set(0, 0, 0);
   if (mySeat === null) {
     if (keys.has('KeyW') || keys.has('ArrowUp')) moveVec.add(forward);
     if (keys.has('KeyS') || keys.has('ArrowDown')) moveVec.sub(forward);
-    if (keys.has('KeyD') || keys.has('ArrowRight')) moveVec.add(right);
-    if (keys.has('KeyA') || keys.has('ArrowLeft')) moveVec.sub(right);
   }
 
   const moving = moveVec.lengthSq() > 0;
@@ -441,9 +466,6 @@ function tick() {
     player.position.z += moveVec.z * speed * dt;
     resolveCollisions(player.position);
   }
-  // 아바타 전체 몸이 카메라가 바라보는 방향을 따라간다 (각 유저의 시야를 다른 사람이 볼 수 있음)
-  const targetRot = orbitYaw + Math.PI;
-  player.rotation.y = lerpAngle(player.rotation.y, targetRot, 1 - Math.exp(-12 * dt));
   player.userData.setMoving(moving);
   player.userData.tick(t);
 
@@ -457,7 +479,7 @@ function tick() {
   /* 카메라 추종 */
   const dist = 7.4 * Math.cos(orbitPitch);
   const height = 1.0 + 7.4 * Math.sin(orbitPitch);
-  camOffset.set(Math.sin(orbitYaw) * dist, height, Math.cos(orbitYaw) * dist);
+  camOffset.set(-Math.sin(yaw) * dist, height, -Math.cos(yaw) * dist);
   camera.position.copy(player.position).add(camOffset);
   // 카메라가 벽/천장 밖으로 나가지 않도록 실내에 가둠
   const { dims } = sanctuary;
@@ -488,6 +510,7 @@ function tick() {
 
   /* 상호작용 힌트 */
   updateInteractHint(player.position);
+  updateHeading();
 
   renderer.render(scene, camera);
 }
