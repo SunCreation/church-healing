@@ -6,10 +6,10 @@
 
 | ID | 우선 | 상태 | 내용 |
 |---|---|---|---|
-| W-001 | P1 | open | **레이트리밋 없음** — 채팅 200자 제한만 있음. IP/세션 기준 슬라이딩 윈도우 필요 |
+| W-001 | P1 | done | **레이트리밋 적용** — 메모리 기준 API 600/분·쓰기 60/분·게시글 30/분·촛불 15/분·채팅 10초 5회. 다중 인스턴스로 확장하면 Redis 필요 |
 | W-002 | P1 | open | **모더레이션 부재** — 게시글/댓글 신고·숨김·삭제. 운영자 토큰 기반 관리 API 필요 |
 | W-003 | P2 | open | 촛불 위치가 클라이언트 로컬 랜덤 — 새로고침 시 재배치. 서버가 좌표를 배정하도록 |
-| W-004 | P2 | planned | SQLite(better-sqlite3) 이전 — 동시 쓰기 경쟁·백업 단순화 |
+| W-004 | P2 | done | ~~SQLite 이전~~ → **Neon/Lakebase Postgres** (ADR-011). 단일 인스턴스 내 동시성 해결, 백업은 Neon Restore 또는 `pg_dump` |
 | W-005 | P2 | open | 게시글 페이지네이션 없음 (전체 반환). cursor 기반으로 |
 | W-006 | P2 | open | 말씀 풀 12개 하드코딩 — DB화 + 매일 갱신/절기 말씀 |
 | W-007 | P2 | open | 사운드 없음 — 배경 성가/ambience(Web Audio, 음소거 기본) |
@@ -21,10 +21,10 @@
 
 | ID | 우선 | 상태 | 내용 |
 |---|---|---|---|
-| S-001 | P1 | open | XSS는 escapeHtml로 방어하지만 CSP 헤더 미설정 — `default-src 'self'` + YouTube 프레임 허용 |
+| S-001 | P1 | done | CSP 설정 완료 (`default-src 'self'`; YouTube frame-src만 허용) + X-Frame-Options/Referrer-Policy/Permissions-Policy/nosniff, `X-Powered-By` 제거 |
 | S-002 | P1 | open | 닉네임 사칭/욕설 필터링 없음 |
 | S-003 | P2 | open | YouTube 임베드 쿠키 — `youtube-nocookie.com` 도메인으로 교체 검토 |
-| S-004 | P2 | open | `data/db.json` 백업/복구 절차 문서화 |
+| S-004 | P2 | open | `data/db.json` 백업/복구 절차 문서화 → Neon Restore/`pg_dump` 안내로 대체(W-004) |
 
 ## 법적/브랜드
 
@@ -41,3 +41,5 @@
 | ~~B-001~~ | 스크린 텍스처 이중 래핑으로 검은 화면 (`canvasTexture(slideTexture(...))`) → 2026-11-03 수정 |
 | ~~B-002~~ | 카메라가 입구 벽 밖에서 시작 → 스폰 z=10.5 + 카메라 룸 클램프 |
 | ~~B-003~~ | 예배중계 "video unavailable" → 공식 LIVE 재생목록 임베드로 교체 (ADR-006) |
+| ~~B-004~~ | Google Fonts stylesheet CSP 차단 → `style-src` allowlist에 `fonts.googleapis.com` 추가 |
+| ~~B-005~~ | Neon Postgres 연동 — JSON 시드 영구 저장으로 대체 (ADR-011) |

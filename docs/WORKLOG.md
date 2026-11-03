@@ -49,3 +49,18 @@ PRD/문서화 체계 추가 + 예배중계 임베드 교체 + 초기 3D 렌더�
 ### 2026-11-03 (후속)
 - 예배중계 임베드 교체 후 헤드리스 재검증: 「video unavailable」 제거, 프레임 정상 로드 확인
 - `docs/screenshots/*` 갱신, 히스토리는 git에 기록
+
+### 2026-11-03 (Neon 연동 + 보안 검토)
+- `neon deploy`: production 브랜치 정책 일치, `.env.local`에 DATABASE_URL/UNPOOLED/NEON_BRANCH pull
+- 저장소를 JSON → **Neon/Lakebase Postgres**로 전환 (`pg.Pool` max 4, `store.js`)
+  - 스키마: posts/comments(FK cascade)/prayers/candles, idempotent 생성 + 빈 테이블일 때만 시드
+  - 연결: 앱 트래픽 풀링 URL 사용, `sslmode`를 `verify-full`로 승격
+- 보안 강화
+  - CSP: `default-src 'self'` + Google Fonts style만 허용 + YouTube frame-src만 허용, `X-Frame-Options`/`nosniff`/`Referrer-Policy`/`Permissions-Policy`, `X-Powered-By` 제거, `trust proxy 1`
+  - 메모리 레이트리밋: API 600/분 · 쓰기 60/분 · 게시글 30/분 · 촛불 15/분 · 채팅 10초 5회
+  - Express 4 async 핸들러 전부 `asyncHandle`로 감싸 내부 에러 비노출(500 generic)
+- 빌드 검증 추가: `npm run build`(서버 CJS/공개 ESM 파싱 + 필수 파일 존재) → 통과
+- Neon에 실제 INSERT/SELECT/DELETE 검증: 게시글/공감/댓글/기도/촛불 생성→행 수 확인→테스트 데이터 삭제
+- 검증용 데이터 삭제 완료 (posts 3 / comments 2 / prayers 2 / candles 0)
+- 헤드리스 스모크 재실행 `NO_CONSOLE_ERRORS` (CSP 수정 후)
+- 문서: PRD/README/ARCHITECTURE/DEPLOY.md/ADR 갱신, `render.yaml`(Render 무료 Blueprint) 추가

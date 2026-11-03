@@ -28,9 +28,9 @@ npm start          # http://localhost:8787
 ## 구조
 
 ```
-server/         Express + WebSocket(/ws) 서버, JSON 파일 저장소
-  index.js      API 라우트 + WS 룸 로직
-  db.js         data/db.json 로드/디바운스 저장 (시드 데이터 포함)
+server/         Express + WebSocket(/ws) 서버
+  index.js      API 라우트 + WS 룸 로직 (+ 보안 헤더/레이트리밋)
+  store.js      저장소 팩토리 — DATABASE_URL 있으면 Neon/Lakebase Postgres(pg.Pool), 없으면 로컬 JSON
 public/         빌드 없는 정적 클라이언트 (ES 모듈)
   index.html    입장 화면 + HUD + 사이드 패널 골
   js/main.js    three.js 씬/카메라/입력/WS/채팅/패널 오케스트레이션
@@ -58,6 +58,23 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 | 변수 | 기본값 | 설명 |
 |---|---|---|
 | `PORT` | `8787` | HTTP/WS 포트 |
+| `DATABASE_URL` | _(없음)_ | Neon/Lakebase Postgres 풀링 연결 문자열. 없으면 로컬 `data/db.json` |
+| `DATABASE_URL_UNPOOLED` | _(없음)_ | 스키마 마이그레이션용 직접 연결 (미설정 시 무시) |
+
+`.env.local`은 git에 포함되지 않습니다(`.gitignore`). 로컬에서 `neon env pull`로 받은 변수를 쓰려면 그대로 두면 됩니다.
+
+## 배포 (무료로 여러 명이 쓰게 하기)
+
+**Neon(무료 Postgres) + Render(무료 Web Service)** 조합을 권장합니다.
+
+1. 저장소를 GitHub에 push → Render Dashboard에서 **New → Web Service** 생성
+2. Build: `npm install` / Start: `npm start` / Health check: `/api/health`
+3. Environment variables에 `DATABASE_URL`(풀링)을 등록 — 로컬이면 `.env.local`을 참고
+4. 무료 플랜은 15분 미사용 시 슬립 → 첫 방문은 지연될 수 있음. `render.yaml`을 커밋해두면 Blueprint로 재현 가능
+
+데이터는 `DATABASE_URL`이 설정된 경우 Neon Postgres에 영구 저장됩니다. 무료 Render만으로는 파일시스템이 임시라 커뮤니티 글이 재시작 시 사라집니다.
+
+상세 절차와 학생들에게 전달할 안내는 [docs/DEPLOY.md](docs/DEPLOY.md)를 참고하세요.
 
 ## 문서
 
@@ -75,4 +92,4 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 ## 라이선스/고지
 
 공식 로고·건물 외관을 복제하지 않은 오마주이며, "여의도순복음교회" 명칭은 테마 표기 목적입니다.
-기도 제목·나눔 글은 서버 파일(`data/db.json`)에 저장되므로 개인 식별정보를 적지 마세요.
+기도 제목·나눔 글은 서버 저장소(Neon Postgres, 또는 `DATABASE_URL`이 없으면 `data/db.json`)에 저장되므로 개인 식별정보를 적지 마세요.

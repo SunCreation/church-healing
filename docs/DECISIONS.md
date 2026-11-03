@@ -17,8 +17,8 @@
 ## ADR-003. JSON 파일 저장소 (초기)
 - 맥락: DB 인프라 없이 시작, 게시글/기도 제목 수준의 소규모 쓰기
 - 결정: `data/db.json` + 500ms 디바운스/원자적 rename 저장, 시드 데이터 포함
-- 결과: 재시작해도 데이터 유지. 동시 쓰기 경쟁·대용량에는 취약 → SQLite 이전 예정 (ISSUES W-004)
-- 상태: 채택 (임시)
+- 결과: 재시작해도 데이터 유지. 동시 쓰기 경쟁·대용량에는 취약
+- 상태: **대체됨** → ADR-011
 
 ## ADR-004. 오리지널 저폴리 성전 (복제 금지)
 - 맥락: "여의도순복음교회 테마" 요청 + 실존 단체의 브랜드/건축물
@@ -52,7 +52,20 @@
 - 결정: 짧은 구절 12개만 인용, 출처 명기, 본문 전체 재현 금지. 확대 시 퍼블릭 도메인 번역(개역한글 1900년대 아님 주의 — 실제 개역한글은 1938년, 저작권 확인 필요) 재검토 또는 공식 라이선스 확인
 - 상태: 채택 (재검토 예정)
 
+## ADR-011. Neon/Lakebase Postgres, 앱 코드는 pg.Pool (JSON은 폴백)
+- 맥락: 배포 환경(Render 무료)의 파일시스템은 임시라 재시작 시 커뮤니티 글이 사라짐
+- 결정: `DATABASE_URL`(풀링)이 있으면 Postgres, 없으면 `data/db.json` 폴백. 앱 코드는 Node.js 장기 실행 Express이므로 서버리스 드라이버가 아닌 `pg`(Pool, max 4) 사용. 스키마는 `CREATE TABLE IF NOT EXISTS` + 빈 테이블에만 시드(멱등), `createdAt`은 bigint epoch
+- 연결: 앱 트래픽 `-pooler`, 마이그레이션은 direct(`DATABASE_URL_UNPOOLED`). `sslmode` 미설정 시 pg가 `require`를 `verify-full`로 승격하도록 코드에서 정규화
+- 결과: 로컬 개발은 `.env.local` 없이도 동작(시드만 저장), 배포는 Neon 영구 저장. 검증: Postgres에서 행 수 합계 확인 후 테스트 행 삭제
+- 상태: 채택
+
+## ADR-012. CSP/보안 헤더 + 인메모리 레이트리밋
+- 맥락: 공개 URL로 불특정 접속 예정, 채팅/게시판 도배 위험
+- 결정: CSP `default-src 'self'` + Google Fonts style + YouTube frame-src만 허용, `X-Content-Type-Options`/`X-Frame-Options`/`Referrer-Policy`/`Permissions-Policy`, `X-Powered-By` 제거, `trust proxy 1` (Render 프록시). 레이트리밋은 단일 인스턴스 기준 메모리 구현(API 600/분, 쓰기 60/분, 게시글 30/분, 촛불 15/분, 채팅 10초 5회)
+- 대가: 다중 인스턴스 확장 시 Redis 등 외부 저장소로 이전 필요
+- 상태: 채택
+
 ## ADR-010. 채팅은 전원 표시 + 말풍선 4.2초
 - 맥락: 공간감과 소통 가시성
-- 결정: 채팅을 토스트+말풍선 이중 표시. 도배 방지는 길이 제한(200자)으로만
-- 결과: 레이트리밋 없음 → ISSUES W-002
+- 결정: 채팅을 토스트+말풍선 이중 표시. 도배 방지는 길이 제한(200자) + 연결당 10초 5회 레이트리밋
+- 상태: 채택

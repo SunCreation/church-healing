@@ -7,7 +7,7 @@
 | 3D 렌더링 | Three.js (r166, `/vendor/three/three.module.js`로 로컬 서빙) | 빌드 없는 ES 모듈 직접 사용, 오프라인 배포 가능 |
 | 클라이언트 | Vanilla ES Modules + CSS 커스텀 (프레임워크 없음) | 번들러 0, 로딩/디버깅 단순 |
 | 서버 | Node.js + Express 4 + `ws` 8 | 정적 서빙 + REST + WS를 단일 프로세스로 |
-| 저장소 | `data/db.json` (디바운스 저장) | 초기 단계 단순성. 트래픽 증가 시 SQLite 이전 예정 |
+| 저장소 | Neon/Lakebase Postgres(`pg.Pool`, 풀링 `-pooler` 연결) 또는 없으면 `data/db.json` | 무료 영구 저장소; 로컬/테스트는 JSON 시드 유지 |
 | 실시간 | WebSocket `/ws`, 12Hz 위치 동기화 | 가볍고 브라우저 범용 |
 
 ## 디렉터리
@@ -17,10 +17,10 @@ church-healing/
 ├─ PRD.md                 제품 요구사항
 ├─ README.md
 ├─ package.json
-├─ data/db.json            (gitignore) 런타임 생성, 시드는 server/db.js
+├─ .env.local              (gitignore) `neon env pull`이 DATABASE_URL 등을 씀
 ├─ server/
-│  ├─ index.js             Express 라우트 + WS 룸 + 인메모리 players Map
-│  └─ db.js                JSON 로드/저장 (structuredClone 시드)
+│  ├─ index.js             Express 라우트 + WS 룸 + 보안 헤더/레이트리밋
+│  └─ store.js             저장소 팩토리 (Postgres 우선, 없으면 JSON)
 └─ public/
    ├─ index.html           입장 화면(#entry) → 앱(#app, canvas + HUD + 사이드 패널)
    ├─ css/style.css
@@ -42,6 +42,8 @@ church-healing/
 ```
 
 ## WebSocket 프로토콜 (`/ws`)
+
+서버 기동 시 `store.init()`이 PostgreSQL에서 스키마(테이블 4개)를 idempotent 하게 만들고, 비어 있으면 시드를 삽입한다.
 
 클라이언트 → 서버
 
@@ -67,7 +69,7 @@ church-healing/
 
 | 메서드 | 경로 | 설명 |
 |---|---|---|
-| GET | `/api/health` | `{ ok, players }` |
+| GET | `/api/health` | `{ ok, players, storage }` |
 | GET | `/api/verse` | 오늘의 말씀 (UTC 날짜 로테이션, 12절) |
 | GET | `/api/schedule` | 예배 시간표(공식 편성 요약) + `official`(링크/임베드) |
 | GET | `/api/posts?category=` | 목록 (최신순) |
@@ -76,7 +78,18 @@ church-healing/
 | POST | `/api/posts/:id/comments` | 댓글 추가 |
 | GET | `/api/prayers` | 최근 100개 |
 | POST | `/api/prayers` | 기도 제목 (`anonymous` 지원) |
-| POST | `/api/candle` | 촛불 접수 → WS `candle` 브로드캐스트 |
+| POST | `/api/candle` | 촛불 접수 → WS `candle` 브로드캐스트 (`candleCount` 포함) |
+
+## 저장소
+
+기본은 **Postgres**, 실패/미설정 시 경고만 남기고 시작하지 않음(`store.init()` 실패 → `process.exit(1)`). 대신 `DATABASE_URL`이 없으면 JSON 저장소로 동작한다(전체 기능 동작, 재시작/동시성 한계 있음). 테이블:
+
+- `posts` (카테고리/이름/제목/본문/공감수/created_at)
+- `comments` (`post_id` FK → `ON DELETE CASCADE`)
+- `prayers` (`anonymous` bool)
+- `candles` (촛불 누적 카운트)
+
+앱 트래픽은 `-pooler`(DATABASE_URL), 스키마 마이그레이션은 direct(DATABASE_URL_UNPOOLED)를 쓰는 것이 원칙. `store.init()`은 `CREATE TABLE IF NOT EXISTS` + 빈 테이블에만 시드 삽입(멱등). SQL은 전부 `$1..` 파라미터 바인딩, `sslmode`는 `verify-full`로 승격.
 
 ## 3D 씬 개요
 
@@ -94,10 +107,13 @@ church-healing/
 
 ## 보안/프라이버시
 
-- 계정/쿠키/IP 수집 없음. 닉네임은 localStorage에만
-- 사용자 입력: 서버 길이 제한 + 클라이언트 `escapeHtml` (게시글/댓글/기도/이름)
-- JSON body 256KB, 색상은 `#rrggbb` 정규식만 허용
-- (미비) 레이트리밋·신고·모더레이션 → `docs/ISSUES.md`
+- 계정/쿠키/위치 수집 없음. 닉네임은 localStorage에만, IP는 레이트리밋 목적으로만 메모리에 체류
+- 사용자 입력: 서버 길이 제한 + 클라이언트 `escapeHtml`
+- SQL: 파라미터 바인딩만 사용 (문자열 연결 쿼리 없음)
+- CSP(`default-src 'self'`, YouTube만 frame, Google Fonts만 style), `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options`, `X-Powered-By` 제거
+- 레이트리밋(인메모리/단일 인스턴스): API 600/분, 쓰기 60/분, 게시글·댓글 30/분, 촛불 15/분, 채팅 10초 5회
+- `trust proxy 1` (Render/nginx 뒤에서 실제 IP), JSON body 256KB, 색상은 `#rrggbb` 정규식만 허용
+- 미적용: 관리자 모더레이션/신고, 다중 인스턴스에서는 Redis 등 저장소 기반 레이트리밋 필요 → `docs/ISSUES.md`
 
 ## 테스트 / 검증
 
@@ -110,15 +126,17 @@ church-healing/
 
 결과: `NO_CONSOLE_ERRORS`. 재현: 서버 실행 후 스크립트 실행 (스크린샷은 참고 자료).
 
+추가로 `npm run build`(서버/공개 JS 파싱 검사 + 필수 파일 존재 확인) 통과. 실제 Neon에 대해서는 생성→공감→댓글을 요청하고 `posts/comments/prayers/candles` 행 수를 쿼리로 확인했다(검증 데이터는 삭제).
+
 ## 배포 메모
 
-- 단일 노드에서 `PORT=xxxx node server/index.js` 로 동작 (정적+WS 동일 오리진)
+- 단일 노드에서 `PORT=xxxx node server/index.js` 로 동작 (정적+WS 동일 오리진) — Neon 권장 구성(Render 무료 + Neon 무료)은 `docs/DEPLOY.md`
 - WS는 sticky session 불필요(단일 프로세스). 다중 인스턴스 시 Redis pub/sub 또는 룸 분리 필요
-- `data/db.json`은 영속 볼륨에 배치. 백업은 파일 단위로 충분
-- 리버스 프록시(nginx) 뒤에 둘 경우 `Upgrade`/`Connection` 헤더 전달 필요
+- `render.yaml` Blueprint 포함 (`npm ci`, health `/api/health`)
+- 백업: Neon Restore(특정 시점 복원) 또는 `pg_dump`(직접 연결)
 
 ## 확장 포인트
 
 - 룸 샤딩(입장 인원 상한), 음성( WebRTC ), 배경 성가( Web Audio )
 - 말씀 풀 DB화 + 관리자 페이지, 절기 이벤트 훅
-- SQLite(better-sqlite3) 이전, 레이트리밋 미들웨어, 신고/숨김
+- 관리자 모더레이션(신고/숨김), 실시간 집계 레이트리밋
