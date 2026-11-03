@@ -354,31 +354,13 @@ export function buildSanctuary(scene) {
   entryGlow.position.set(0, 5.2, frontZ - 0.28);
   root.add(entryGlow);
 
-  /* 게시판 상단 표지(외부) + 실내 안내문 */
+  /* 게시판 표지(외부) */
   const boardSign = new THREE.Mesh(
     new THREE.PlaneGeometry(7.6, 1.45),
     new THREE.MeshBasicMaterial({ map: wallTextTexture('공식 소식 게시판'), transparent: true, depthWrite: false })
   );
   boardSign.position.set(-10.3, 5.55, D / 2 + 0.85);
   root.add(boardSign);
-  const insideSign = new THREE.Mesh(
-    new THREE.PlaneGeometry(7.2, 1.35),
-    new THREE.MeshBasicMaterial({ map: wallTextTexture('← 공식 소식'), transparent: true, depthWrite: false })
-  );
-  insideSign.position.set(-5.9, 6.2, D / 2 - 0.08);
-  insideSign.rotation.y = Math.PI;
-  root.add(insideSign);
-  // 마당 중앙에서 게시판의 방향을 알려주는 작은 안내판
-  const guideSign = new THREE.Mesh(
-    new THREE.PlaneGeometry(4.4, 0.95),
-    new THREE.MeshBasicMaterial({ map: wallTextTexture('←  공식 소식'), transparent: true, depthWrite: false })
-  );
-  guideSign.position.set(-3.8, 2.6, D / 2 + 4.4);
-  guideSign.rotation.y = Math.PI;
-  // 안내판이 서 있는 기둥
-  root.add(box(0.22, 2.6, 0.22, MAT.woodDark, -5.9, 1.3, D / 2 + 4.4, { shadow: false }));
-  root.add(box(0.22, 2.6, 0.22, MAT.woodDark, -1.7, 1.3, D / 2 + 4.4, { shadow: false }));
-  root.add(guideSign);
 
   /* ========== 공식 소식 게시판 (마당 왼쪽 — 초록 나무틀 게시판) ========== */
   const boardFrameMat = new THREE.MeshStandardMaterial({ color: 0x5a3b23, roughness: 0.6, metalness: 0.05 });
