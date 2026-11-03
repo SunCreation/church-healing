@@ -1,5 +1,5 @@
 /**
- * 빛의 성전 — 메인 클라이언트
+ * 신도교회 — 메인 클라이언트
  * 진입 → 3D 예배당 + WebSocket 실시간 동기화 + 패널(예배/묵상/기도/나눔/안내)
  */
 import * as THREE from '/vendor/three/three.module.js';
@@ -17,25 +17,44 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const bulletinViewer = $('#bulletinViewer');
 const bulletinCards = $('#bulletinCards');
 const bulletinClose = $('#bulletinClose');
+const bulletinTabs = $$('.bulletin-tab');
 let bulletinOpen = false;
+let bulletinKind = 'notice';
+let bulletinPreviousFocus = null;
 
-function openBulletin() {
+function groupFor(kind) {
+  return (frontNews.groups ?? []).find((g) => g.key === kind) ?? { key: kind, items: [] };
+}
+function setBulletinTab(kind) {
+  bulletinKind = kind;
+  bulletinTabs.forEach((tab) => {
+    const on = tab.dataset.kind === kind;
+    tab.classList.toggle('active', on);
+    tab.setAttribute('aria-selected', String(on));
+    tab.tabIndex = on ? 0 : -1;
+    if (on) bulletinCards.setAttribute('aria-labelledby', tab.id);
+  });
+}
+function openBulletin(kind = 'notice') {
+  bulletinPreviousFocus = document.activeElement;
   document.activeElement?.blur();
   keys.clear();
   bulletinOpen = true;
+  setBulletinTab(kind);
   bulletinViewer.classList.remove('hidden');
+  bulletinClose.focus();
   $('#interactHint').classList.add('hidden');
   // frontNews는 3D 게시판 초기화 때 로드되며, 비어 있으면 fetch 재시도
-  if ((frontNews.items?.length ?? 0) > 0) {
-    renderBulletinCards(frontNews);
+  if ((frontNews.groups ?? []).some((g) => g.items?.length)) {
+    renderBulletinCards();
     return;
   }
   bulletinCards.innerHTML = '<p class="bulletin-loading">게시물을 불러오는 중…</p>';
   fetch('/api/news')
     .then((res) => res.ok ? res.json() : null)
     .then((data) => {
-      if (data?.items) frontNews = data;
-      renderBulletinCards(frontNews);
+      if (data?.groups) frontNews = data;
+      renderBulletinCards();
     })
     .catch(() => {
       bulletinCards.innerHTML = '<p class="bulletin-loading">소식을 불러오지 못했습니다. 공식 페이지를 확인해 주세요.</p>';
@@ -44,8 +63,28 @@ function openBulletin() {
 function closeBulletin() {
   bulletinOpen = false;
   bulletinViewer.classList.add('hidden');
+  bulletinPreviousFocus?.focus();
 }
 bulletinClose?.addEventListener('click', closeBulletin);
+bulletinTabs.forEach((tab) => tab.addEventListener('click', () => {
+  setBulletinTab(tab.dataset.kind);
+  renderBulletinCards();
+}));
+bulletinTabs.forEach((tab, index) => tab.addEventListener('keydown', (e) => {
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.code)) return;
+  e.preventDefault();
+  const next = e.code === 'Home' ? 0 : e.code === 'End' ? bulletinTabs.length - 1
+    : (index + (e.code === 'ArrowRight' ? 1 : -1) + bulletinTabs.length) % bulletinTabs.length;
+  bulletinTabs[next].click();
+  bulletinTabs[next].focus();
+}));
+bulletinViewer.addEventListener('keydown', (e) => {
+  if (e.code !== 'Tab') return;
+  const focusable = [...bulletinViewer.querySelectorAll('button:not([tabindex="-1"]), a[href]')];
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
 bulletinViewer?.addEventListener('click', (e) => {
   if (e.target === e.currentTarget || e.target === bulletinViewer.querySelector('.bulletin-viewer__backdrop')) closeBulletin();
 });
@@ -54,17 +93,19 @@ bulletinCards?.addEventListener('click', (e) => {
   const url = card?.dataset?.url;
   if (url) window.open(url, '_blank', 'noopener,noreferrer');
 });
-function renderBulletinCards(data) {
-  const items = (data?.items ?? []).slice(0, 9);
+function renderBulletinCards() {
+  const group = groupFor(bulletinKind);
+  const items = (group.items ?? []).slice(0, 9);
   if (!items.length) {
     bulletinCards.innerHTML = '<p class="bulletin-loading">표시할 소식을 가져오지 못했습니다. 공식 페이지를 확인해 주세요.</p>';
     return;
   }
-  bulletinCards.innerHTML = items.map((it, i) => `
+  const note = group.error ? `<p class="bulletin-loading">${escapeText(group.error)} ${group.stale ? '마지막으로 불러온 목록을 표시합니다.' : '공식 목록을 확인해 주세요.'}</p>` : '';
+  bulletinCards.innerHTML = note + items.map((it, i) => `
     <button class="bulletin-card" data-url="${escapeAttr(it.url)}" aria-label="${escapeAttr(it.title)} 보기">
       <div class="bulletin-card__date">${escapeText(it.date)}</div>
       <h3>${escapeText(it.title)}</h3>
-      <div class="bulletin-card__foot"><span>#${String(i + 1).padStart(2, '0')}</span><span>영상 보기 ↗</span></div>
+      <div class="bulletin-card__foot"><span>#${String(i + 1).padStart(2, '0')}</span><span>공식 글 보기 ↗</span></div>
     </button>`).join('');
 }
 function escapeText(s) {
@@ -102,7 +143,7 @@ AVATAR_COLORS.forEach((hex) => {
 let three = null;          // { renderer, scene, camera, clock, sanctuary, player }
 let ws = null;
 let myId = null;
-let frontNews = { items: [], fetchedAt: 0 };
+let frontNews = { groups: [], items: [], fetchedAt: 0 };
 let mySeat = null;
 const remotePlayers = new Map(); // id → { group, targetX, targetZ, targetRot, targetY, seat, moving }
 const candles = [];              // { flame }
@@ -294,7 +335,7 @@ async function loadFrontNews(sanctuary) {
     if (!res.ok) throw new Error(`소식 ${res.status}`);
     const data = await res.json();
     frontNews = data;
-    sanctuary.bulletin?.draw(data.items ?? []);
+    sanctuary.bulletin?.draw(data);
   } catch (e) {
     console.warn('공식 소식 갱신 실패:', e.message);
   }
@@ -448,6 +489,7 @@ function updateHeading() {
 /* ============ 키보드 ============ */
 const TYPING_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT']);
 addEventListener('keydown', (e) => {
+  if (e.code === 'KeyF' && e.repeat) return;
   if (TYPING_TAGS.has(document.activeElement?.tagName)) {
     if (e.key === 'Escape') document.activeElement.blur();
     return;
@@ -659,7 +701,7 @@ chatForm.addEventListener('submit', (e) => {
 /* ============ 입장 ============ */
 entryForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  playerName = (nameInput.value.trim() || '순복음성도').slice(0, 20);
+  playerName = (nameInput.value.trim() || '신도성도').slice(0, 20);
   localStorage.setItem(LS.name, playerName);
   localStorage.setItem(LS.color, chosenColor);
   $('#chatNameTag').textContent = playerName;
@@ -677,5 +719,5 @@ entryForm.addEventListener('submit', (e) => {
   }
   connectWS();
   tick();
-  toast(`${playerName} 님, 빛의 성전에 오신 것을 환영합니다 ✝ · 입구로 나가면 공식 소식 게시판이 있습니다`);
+  toast(`${playerName} 님, 신도교회 3D 힐링 공간에 오신 것을 환영합니다 ✝ · 입구로 나가면 공식 소식 게시판이 있습니다`);
 });

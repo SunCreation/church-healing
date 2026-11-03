@@ -15,7 +15,7 @@ const uid = (p) => `${p}-${Date.now().toString(36)}-${Math.random().toString(36)
 
 const SEED_POSTS = [
   {
-    id: 'seed-1', category: '간증', name: '서초순복음',
+    id: 'seed-1', category: '간증', name: '구로동성도',
     title: '낮기도를 하며 마음의 평안을 얻었어요',
     body: '매일 새벽기도로 하루를 시작하니 하루의 불안이 눈에 띄게 줄었습니다. 함께 기도하며 걷는 이 공간이 너무 감사합니다.',
     likes: 12, createdAt: Date.now() - 1000 * 60 * 60 * 26,

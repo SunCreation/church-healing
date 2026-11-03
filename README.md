@@ -1,14 +1,14 @@
-# 빛의 성전 (Light Sanctuary) ✝
+# 신도교회 ✝
 
-여의도순복음교회를 테마로 한 **웹 3D 힐링 공간**. 링크 하나로 입장해 가상 대성전을 함께 걸으며, 예배 생중계를 보고, 말씀을 묵상하고, 기도 촛불을 켜고, 위로를 나눕니다.
+신도교회를 테마로 한 **웹 3D 힐링 공간**. 링크 하나로 입장해 가상 예배당을 함께 걸으며, 예배 영상을 보고, 말씀을 묵상하고, 기도 촛불을 켜고, 위로를 나눕니다.
 
-> ⚠️ 본 프로젝트는 **비공식** 테마 앱입니다. 공식 예배 안내·생중계는 [교회 공식 채널](https://yfgc.fgtv.com)을 이용하세요.
+> ⚠️ 본 프로젝트는 신도교회와 무관한 **비공식** 테마 앱입니다. 공식 예배 안내·생중계·주보는 [신도교회 공식 홈페이지](https://www.shindoch.org)를 이용하세요.
 
 ![입장 화면](docs/screenshots/00_entry.png)
 ![3D 예배당](docs/screenshots/01_sanctuary.png)
 ![앞마당과 예배당 입구](docs/screenshots/09_front_yard.png)
 ![페우에 앉은 모습](docs/screenshots/07_sit.png)
-![공식 소식 게시판](docs/screenshots/08_news_panel.png)
+![신도교회 소식 게시판](docs/screenshots/08_news_panel.png)
 
 ## 빠른 시작
 
@@ -27,31 +27,36 @@ npm start          # http://localhost:8787
 |---|---|
 | `npm start` | 서버 실행 (PORT 환경변수, 기본 8787) |
 | `npm run dev` | `node --watch` 자동 재시작 |
+| `npm run build` | 서버/공개 JS 파싱 + 필수 파일 존재 검사 |
+| `npm test` | 공식 소식 파싱·공개 권한·캐시·장애 복구 테스트 |
 
 ## 구조
 
 ```
 server/         Express + WebSocket(/ws) 서버
   index.js      API 라우트 + WS 룸 로직 (+ 보안 헤더/레이트리밋)
+  news.js       신도교회 공식 공지사항·주보 목록 프록시 (10분 캐시)
   store.js      저장소 팩토리 — DATABASE_URL 있으면 Neon/Lakebase Postgres(pg.Pool), 없으면 로컬 JSON
 public/         빌드 없는 정적 클라이언트 (ES 모듈)
-  index.html    입장 화면 + HUD + 사이드 패널 골
+  index.html    입장 화면 + HUD + 사이드 패널 + 확대 게시판
   js/main.js    three.js 씬/카메라/입력/WS/채팅/패널 오케스트레이션
   js/sanctuary.js  예배당 3D 빌드 (절차적 텍스처, 충돌체 반환)
   js/avatars.js 저폴리 아바타 + 이름표/말풍선 스프라이트
-  js/panels.js  예배중계/묵상/기도/나눔/안내 패널 (escapeHtml)
+  js/panels.js  예배중계/묵상/기도/나눔/안내/소식 패널 (escapeHtml)
 docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 ```
 
 ## 주요 기능
 
-- 🚶 3D 대성전 탐험 + 앞마당 산책 (`↑` 바라보는 방향으로만 이동, `←`/`→` 방향 전환, 마우스 드래그 시야, Shift 달리기)
+- 🚶 3D 예배당 탐험 + 앞마당 산책 (`↑` 바라보는 방향으로만 이동, `←`/`→` 방향 전환, 마우스 드래그 시야, Shift 달리기)
 - 🧭 화면 상단에 현재 바라보는 방향(성소/측면/후면·각도) 표시
 - 🪑 페우 좌석에 앉기/일어서기 (`F`), 개별 좌석 1칸씩 선점, 앉으면 정면 시야 고정
 - 👀 다른 사람의 아바타가 바라보는 방향까지 실시간 동기화
-- 📋 예배당 입구로 나가면 왼쪽 벽에 공식 소식 게시판 (입구에 '← 공식 소식' 안내문 있음)
+- 📋 예배당 입구로 나가면 왼쪽의 초록 게시판에 **신도교회 공지사항·주보** 최신 목록 표시
+  - 가까이에서 `F` → 게시판 전면 확대, `공지사항`/`주보` 탭 전환, 게시물 클릭 시 공식 페이지로 이동
 - 👥 실시간 아바타 동기화 + 채팅(Enter) + 아바타 위 말풍선
-- 📺 공식 예배 생중계 임베드 + 예배 시간표
+- 📺 신도교회 공식 YouTube 임베드 (실시간 생중계 / 최근 예배 영상 전환) + 예배 시간표
+  - 최근 업로드 기본 표시. 실시간은 방송 중에만 가능하며, 임베드 제한 시 공식 채널 링크 이용
 - 📖 날짜별 말씀 묵상 + SOAP 가이드 + 로컬 묵상 노트
 - 🕯️ 기도 촛불 (전원 동시) + 익명 기도 제목
 - 💬 간증/감사/위로 나눔 (공감·댓글)
@@ -59,6 +64,15 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 ![예배 생중계](docs/screenshots/02_worship.png)
 ![기도의 자리](docs/screenshots/04_prayer.png)
 ![나눔과 간증](docs/screenshots/05_community.png)
+
+## 공식 정보
+
+- 홈페이지: https://www.shindoch.org
+- YouTube: https://www.youtube.com/channel/UC7Ko6OUkjH0gThOqEBFRCNA
+- 예배 안내: https://www.shindoch.org/main/a03
+- 공지사항: https://www.shindoch.org/main/e0101/board
+- 주보: https://www.shindoch.org/main/e04/board
+- 주소: 서울특별시 구로구 구일로2길 45 (구로동) · 02-869-6747
 
 ## 환경 변수
 
@@ -90,13 +104,16 @@ docs/           PRD·아키텍처·의사결정·작업로그·스크린샷
 - [docs/DECISIONS.md](docs/DECISIONS.md) — 의사결정 기록(ADR)
 - [docs/WORKLOG.md](docs/WORKLOG.md) — 작업 로그
 - [docs/ISSUES.md](docs/ISSUES.md) — 알려진 이슈·백로그
+- [docs/DEPLOY.md](docs/DEPLOY.md) — Render + Neon 배포
 
 ## 검증
 
 헤드리스 Chrome + Playwright로 스모크 검증 (입장 → 씬 렌더 → 패널 5종 → 채팅). `NO_CONSOLE_ERRORS` 확인.
+게시판은 3D 보드 렌더 + `F` 확대 뷰 + 공지/주보 탭 전환까지 확인합니다.
 자세한 절차는 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#테스트--검증).
 
 ## 라이선스/고지
 
-공식 로고·건물 외관을 복제하지 않은 오마주이며, "여의도순복음교회" 명칭은 테마 표기 목적입니다.
+공식 로고·건물 외관을 복제하지 않은 오마주이며, "신도교회" 명칭은 테마 표기 목적입니다. 본 앱은 교회의 공식 서비스가 아니며 교회의 입장을 대변하지 않습니다.
+공지사항·주보는 제목/날짜와 공식 페이지 링크만 표시하고 본문·이미지는 재배포하지 않습니다.
 기도 제목·나눔 글은 서버 저장소(Neon Postgres, 또는 `DATABASE_URL`이 없으면 `data/db.json`)에 저장되므로 개인 식별정보를 적지 마세요.

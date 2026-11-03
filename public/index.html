@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="description" content="여의도순복음교회를 테마로 한 3D 힐링 공간. 가상 예배당을 함께 걸으며 묵상하고, 기도하고, 위로를 나눕니다." />
-  <title>빛의 성전 — 순복음 힐링 3D</title>
+  <meta name="description" content="신도교회와 함께하는 3D 힐링 공간. 가상 예배당을 함께 걸으며 묵상하고, 기도하고, 위로를 나눕니다." />
+  <title>신도교회</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⛪</text></svg>" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -17,8 +17,8 @@
   <section id="entry" class="entry">
     <div class="entry__backdrop" aria-hidden="true"></div>
     <div class="entry__card">
-      <div class="entry__badge">여의도순복음교회 테마 · 비공식 힐링 앱</div>
-      <h1 class="entry__title">빛의 성전<span class="entry__title-sub">LIGHT SANCTUARY</span></h1>
+      <div class="entry__badge">신도교회 · 비공식 힐링 앱</div>
+      <h1 class="entry__title">신도교회<span class="entry__title-sub">SHINDO CHURCH</span></h1>
       <p class="entry__desc">
         함께 걷는 3D 예배당에서 묵상하고, 기도하고, 위로를 나누세요.<br />
         입장하면 다른 성도들의 아바타와 실시간으로 만날 수 있습니다.
@@ -46,8 +46,8 @@
         <li>💬 간증·나눔 커뮤니티</li>
       </ul>
       <p class="entry__disclaimer">
-        본 앱은 여의도순복음교회를 주제로 한 <strong>비공식</strong> 팬·힐링 프로젝트입니다.
-        공식 예배 안내와 생중계는 <a id="officialLinkEntry" href="https://yfgc.fgtv.com" target="_blank" rel="noopener">교회 공식 홈페이지</a>를 확인하세요.
+        본 앱은 신도교회를 주제로 한 <strong>비공식</strong> 힐링 프로젝트입니다.
+        공식 예배 안내와 생중계는 <a id="officialLinkEntry" href="https://www.shindoch.org" target="_blank" rel="noopener">교회 공식 홈페이지</a>를 확인하세요.
       </p>
     </div>
   </section>
@@ -61,7 +61,7 @@
       <div class="hud__brand">
         <span class="hud__cross">✝</span>
         <div>
-          <strong>빛의 성전</strong>
+          <strong>신도교회</strong>
           <small id="onlineCount">접속자 1명</small>
         </div>
       </div>
@@ -92,17 +92,22 @@
         <header class="bulletin-viewer__head">
           <div>
             <span class="bulletin-viewer__kicker">공식</span>
-            <h2>순복음소식</h2>
-            <p>여의도순복음교회 공식 FGTV에서 갱신하는 소식입니다. 본문 재배포 없이 공식 페이지로 이동합니다.</p>
+            <h2>신도교회 소식</h2>
+            <p>신도교회 공식 홈페이지의 공지사항과 주보입니다. 본문은 재배포하지 않고 공식 페이지로 이동합니다.</p>
           </div>
           <button id="bulletinClose" class="icon-btn" aria-label="닫기">✕</button>
         </header>
-        <div id="bulletinCards" class="bulletin-cards" aria-live="polite">
+        <div class="bulletin-tabs" role="tablist" aria-label="소식 분류">
+          <button id="noticeTab" class="bulletin-tab active" data-kind="notice" role="tab" aria-controls="bulletinCards" aria-selected="true">공지사항</button>
+          <button id="weeklyTab" class="bulletin-tab" data-kind="bulletin" role="tab" aria-controls="bulletinCards" aria-selected="false" tabindex="-1">주보</button>
+        </div>
+        <div id="bulletinCards" class="bulletin-cards" role="tabpanel" aria-labelledby="noticeTab" aria-live="polite">
           <p class="bulletin-loading">게시물을 불러오는 중…</p>
         </div>
         <footer class="bulletin-viewer__foot">
-          <span>* 공식 페이지로 이동합니다. 본문·영상은 FGTV에서 확인해 주세요.</span>
-          <a class="btn btn--ghost btn--sm" href="https://www.fgtv.com/fgtv/f5/0101.asp" target="_blank" rel="noopener">공식 목록 ↗</a>
+          <span>* 클릭하면 신도교회 공식 페이지로 이동합니다.</span>
+          <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org/main/e0101/board" target="_blank" rel="noopener">공식 소식 ↗</a>
+          <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org/main/e04/board" target="_blank" rel="noopener">공식 주보 ↗</a>
         </footer>
       </div>
     </div>

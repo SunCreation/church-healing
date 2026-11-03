@@ -20,6 +20,7 @@ church-healing/
 ├─ .env.local              (gitignore) `neon env pull`이 DATABASE_URL 등을 씀
 ├─ server/
 │  ├─ index.js             Express 라우트 + WS 룸 + 보안 헤더/레이트리밋
+│  ├─ news.js              신도교회 공식 공지사항·주보 목록 프록시 (10분 캐시)
 │  └─ store.js             저장소 팩토리 (Postgres 우선, 없으면 JSON)
 └─ public/
    ├─ index.html           입장 화면(#entry) → 앱(#app, canvas + HUD + 사이드 패널)
@@ -28,7 +29,7 @@ church-healing/
       ├─ main.js           씬/카메라/입력/WS/채팅/패널 오케스트레이션
       ├─ sanctuary.js      예배당 빌드 (캔버스 텍스처 절차적 생성, AABB 충돌체 반환)
       ├─ avatars.js        캡슐+구체 저폴리 아바타, 이름표/말풍선 스프라이트
-      └─ panels.js         5개 패널 렌더/바인딩, escapeHtml 강제
+      └─ panels.js         6개 패널 렌더/바인딩, escapeHtml 강제
 ```
 
 ## 실행 흐름
@@ -72,7 +73,7 @@ church-healing/
 | GET | `/api/health` | `{ ok, players, storage }` |
 | GET | `/api/verse` | 오늘의 말씀 (UTC 날짜 로테이션, 12절) |
 | GET | `/api/schedule` | 예배 시간표(공식 편성 요약) + `official`(링크/임베드) |
-| GET | `/api/news` | FGTV ‘순복음소식’ 10분 캐시 (`sourceUrl`/`items`) |
+| GET | `/api/news` | 신도교회 공지사항·주보 10분 캐시 (`groups[]`: notice/bulletin, `items[]`) |
 | GET | `/api/posts?category=` | 목록 (최신순) |
 | POST | `/api/posts` | 생성 `{name?, category, title, body}` |
 | POST | `/api/posts/:id/like` | 공감 +1 |
@@ -96,7 +97,7 @@ church-healing/
 
 - 룸 56×38×15 + 앞마당 56×9 (입구 남쪽 z>19) — 입구 포털 아치, 앞마당 게시판, 담장, 석재 바닥
 - 중앙 회랑(폭 3.6) + 양측 페우 8열×2, 개별 지정석 144개 (`seats`)
-- 게시판은 공식 ‘순복음소식’ 목록을 FGTV 페이지에서 가져와 10분 캐시. 본문/영상 재배포 없이 공식 링크만 제공
+- 게시판은 신도교회 공식 홈페이지의 공지사항·주보 목록을 10분 캐시. 본문/이미지 재배포 없이 공식 링크만 제공
 - 십자가: `MeshStandardMaterial(emissive)` + PointLight(맥동) + AdditiveBlending 빛줄기 콘 + 후광 Plane
 - 텍스처는 전부 `document.createElement('canvas')` 절차적 생성 (스테인드글라스/카펫/스크린/LED레터링) → 외부 이미지 0
 - 조명: Hemisphere + Directional(섀도 2048) + PointLight 2개 (십자가/필)
@@ -113,10 +114,16 @@ church-healing/
 
 ## 예배당 밖 게시판
 
-- 위치: 남쪽 입구 앞마당 좌측 벽걸이형 게시판 (플레이어 z≈19.5, x≈-10.4)
-- `GET /api/news` → FGTV ‘순복음소식’(`f5/01_listview.asp`)을 10분 캐시로 HTML 파싱, `videoId`/날짜/제목만 반환
-- 클라이언트는 게시판 캔버스에 날짜/제목을 그려 넣고, `F`로 상세 패널(`news`) 열기
-- 본문/영상은 재배포하지 않고 공식 페이지(`f5/01.asp?selected_num=`)로 연결
+- 위치: 남쪽 입구 앞마당 왼쪽의 독립형 초록 게시판 (플레이어 z≈19.5, x≈-10.4)
+- `GET /api/news` → 신도교회 공식 홈페이지의 두 목록을 10분 캐시로 JSON 수집
+  - 공지사항 `https://www.shindoch.org/documents?moduleId=e0101&permissionsOnly=0`
+  - 주보 `https://www.shindoch.org/documents?moduleId=e04&permissionsOnly=0`
+- 응답: `{ source, official, fetchedAt, groups:[{key,label,sourceUrl,items[]}], items[] }`
+  - 각 item: `{ id, kind, date(YYYY.MM.DD), title, url }` — 날짜 내림차순 최대 10건
+- 클라이언트는 3D 게시판 캔버스에 공지 3건 + 주보 3건을 종이/핀 형태로 렌더
+- 근접 `F` → 확대 뷰(`#bulletinViewer`)에서 `공지사항`/`주보` 탭 전환, 카드 클릭 시 공식 문서(`/main/<module>/board/<document_idx>`)로 새 탭 이동
+- 본문/이미지는 재배포하지 않고 제목·날짜·링크만 노출
+- 공개·열람 가능 문서와 숫자 ID만 허용. 분류별 마지막 성공 목록/시각을 보존하고 실패도 10분 캐시. 동시 요청은 같은 조회를 공유
 
 ## 보안/프라이버시
 
@@ -133,11 +140,14 @@ church-healing/
 헤드리스 Chrome(Playwright Python 1.58, `channel='chrome'`)으로 스모크:
 
 1. 입장 폼 제출 → 3.5초 대기
-2. 스크린샷 7장 (`docs/screenshots/`) — 콘솔 에러/페이지 에러 수집
-3. 패널 5종 열기 → ESC 닫기
-4. 채팅 1건 전송 → 말풍선 확인
+2. 스크린샷 (`docs/screenshots/`) — 콘솔 에러/페이지 에러 수집
+3. 패널 5종(예배/묵상/기도/나눔/안내) 열기 → ESC 닫기
+4. 앞마당 게시판 근접 → `F` 확대 뷰 → 공지/주보 탭 전환
+5. 채팅 1건 전송 → 말풍선 확인
 
 결과: `NO_CONSOLE_ERRORS`. 재현: 서버 실행 후 스크립트 실행 (스크린샷은 참고 자료).
+
+`npm test`: 공식 소식 목록·권한 필터·캐시·동시 조회·부분/전체 장애를 네트워크 없이 검증 (`tests/news.test.cjs`).
 
 추가로 `npm run build`(서버/공개 JS 파싱 검사 + 필수 파일 존재 확인) 통과. 실제 Neon에 대해서는 생성→공감→댓글을 요청하고 `posts/comments/prayers/candles` 행 수를 쿼리로 확인했다(검증 데이터는 삭제).
 

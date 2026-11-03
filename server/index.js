@@ -1,6 +1,6 @@
 /**
- * 빛의 성전 — 서버
- * - Express: 정적 파일 + REST API (묵상 말씀 / 커뮤니티 / 기도요청 / 촛불)
+ * 신도교회 — 서버
+ * - Express: 정적 파일 + REST API (묵상 말씀 / 커뮤니티 / 기도요청 / 촛불 / 공식 소식)
  * - WebSocket(`/ws`): 3D 공간 실시간 아바타 위치 동기화 + 채팅 + 촛불 브로드캐스트
  *
  * 실행: npm start  → http://localhost:8787
@@ -102,26 +102,32 @@ const VERSES = [
   { text: '나 여호와가 말하노라 너희를 향한 나의 생각은 내가 아나니 평안이요 재앙이 아니니라 너희에게 장래와 희망을 주는 것이니라.', ref: '예레미야 29:11' },
 ];
 
-/** 예배 안내 (여의도순복음교회 공식 정보 요약 — 변경될 수 있으므로 UI에서 공식 링크 병행 표기) */
+/** 예배 안내 (신도교회 공식 홈페이지 요약 — 변경될 수 있으므로 UI에서 공식 링크 병행 표기) */
 const WORSHIP_SCHEDULE = [
-  { name: '주일예배 1부', time: '주일 오전 7:00', place: '대성전' },
-  { name: '주일예배 2부', time: '주일 오전 9:00', place: '대성전' },
-  { name: '주일예배 3부', time: '주일 오전 11:00', place: '대성전' },
-  { name: '주일예배 4부', time: '주일 오후 1:00', place: '대성전' },
-  { name: '주일예배 5부(대학청년)', time: '주일 오후 2:30', place: '대성전' },
-  { name: '주일저녁예배', time: '주일 오후 5:00', place: '대성전' },
-  { name: '수요예배', time: '수 오전 10:30 · 오후 7:30', place: '대성전' },
-  { name: '금요성령대망회', time: '금 오후 8:30', place: '대성전' },
-  { name: '새벽예배', time: '월~금 오전 5:30 · 6:30', place: '대성전 / 예루살렘성전' },
-  { name: '토요예배', time: '토 오전 7:00', place: '대성전' },
+  { name: '주일낮예배 1부', time: '주일 오전 7:30', place: '본당' },
+  { name: '주일낮예배 2부', time: '주일 오전 9:00', place: '본당' },
+  { name: '주일낮예배 3부', time: '주일 오전 11:00', place: '본당' },
+  { name: '주일낮예배 4부', time: '주일 오후 2:00', place: '소예배실' },
+  { name: '오후 찬양예배', time: '주일 오후 2:00', place: '본당' },
+  { name: '새벽기도회', time: '월~금 오전 5:30', place: '본당' },
+  { name: '수요기도회', time: '수요일 저녁 7:30', place: '본당' },
+  { name: '금요기도회', time: '금요일 밤 9:00', place: '본당' },
+  { name: '목장모임', time: '주일 (월 1회)', place: '각 목장별' },
 ];
 
 const OFFICIAL_LINKS = {
-  site: 'https://yfgc.fgtv.com/y2/02.asp',
-  youtube: 'https://www.youtube.com/@YFGCFGTV',
-  youtubeLiveEmbed: 'https://www.youtube.com/embed/videoseries?list=PLaMcIb0DJ7THbXrf6TR6fbUu6LmyRtc_L',
-  address: '서울특별시 영등포구 국회대로 76길 15 (여의도동 11번지)',
-  tel: '02-6181-9191',
+  site: 'https://www.shindoch.org',
+  youtube: 'https://www.youtube.com/channel/UC7Ko6OUkjH0gThOqEBFRCNA',
+  youtubeLiveEmbed: 'https://www.youtube.com/embed/live_stream?channel=UC7Ko6OUkjH0gThOqEBFRCNA',
+  youtubeUploadsEmbed: 'https://www.youtube.com/embed/videoseries?list=UU7Ko6OUkjH0gThOqEBFRCNA',
+  noticeUrl: 'https://www.shindoch.org/main/e0101/board',
+  bulletinUrl: 'https://www.shindoch.org/main/e04/board',
+  worshipUrl: 'https://www.shindoch.org/main/a03',
+  address: '서울특별시 구로구 구일로2길 45 (구로동)',
+  tel: '02-869-6747',
+  tel2: '02-869-6748',
+  tel3: '02-868-9191',
+  pastorTel: '02-839-1009',
 };
 
 app.get('/api/health', (_req, res) => res.json({ ok: true, players: players.size, storage: store.name }));
@@ -149,7 +155,7 @@ app.post('/api/posts', limitPosts, asyncHandle(async (req, res) => {
   const post = {
     id: uid('post'),
     category: ['간증', '기도요청', '감사', '위로', '자유'].includes(category) ? category : '자유',
-    name: clampStr(name, 30) || '순복음성도',
+    name: clampStr(name, 30) || '신도성도',
     title: t,
     body: b,
     createdAt: Date.now(),
@@ -166,7 +172,7 @@ app.post('/api/posts/:id/like', limitWrites, asyncHandle(async (req, res) => {
 app.post('/api/posts/:id/comments', limitPosts, asyncHandle(async (req, res) => {
   const body = clampStr(req.body?.body, 1000);
   if (!body) return res.status(400).json({ error: '댓글 내용은 필수입니다.' });
-  const comment = { id: uid('cmt'), name: clampStr(req.body?.name, 30) || '순복음성도', body, createdAt: Date.now() };
+  const comment = { id: uid('cmt'), name: clampStr(req.body?.name, 30) || '신도성도', body, createdAt: Date.now() };
   const saved = await store.addComment(req.params.id, comment);
   if (!saved) return res.status(404).json({ error: '게시글을 찾을 수 없습니다.' });
   res.status(201).json(saved);
@@ -182,7 +188,7 @@ app.post('/api/prayers', limitWrites, asyncHandle(async (req, res) => {
   const anonymous = Boolean(req.body?.anonymous);
   const prayer = {
     id: uid('pray'),
-    name: anonymous ? '익명' : clampStr(req.body?.name, 30) || '순복음성도',
+    name: anonymous ? '익명' : clampStr(req.body?.name, 30) || '신도성도',
     anonymous,
     body,
     createdAt: Date.now(),
@@ -306,7 +312,7 @@ store
   .init()
   .then(() => {
     server.listen(PORT, () => {
-      console.log(`\n빛의 성전 서버 실행 중 → http://localhost:${PORT}\n`);
+      console.log(`\n신도교회 서버 실행 중 → http://localhost:${PORT}\n`);
     });
   })
   .catch((err) => {

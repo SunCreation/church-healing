@@ -3,27 +3,31 @@
  * 모든 사용자 생성 콘텐츠는 escapeHtml을 거쳐 렌더링한다 (XSS 방지).
  */
 
-/** 공식 소스 ‘순복음소식’ 목록을 외부 링크로 보여준다 (본문/영상 재배포 없음) */
+/** 신도교회 공식 공지사항·주보 목록을 외부 링크로 보여준다 (본문 재배포 없음) */
 async function newsHtml() {
   const data = await fetchJson('/api/news');
-  const items = data.items ?? [];
+  const groups = data.groups ?? [];
   const fetchNote = data.fetchedAt
     ? `마지막 갱신 ${new Date(data.fetchedAt).toLocaleString('ko-KR')}`
     : '서버에서 소식을 불러오지 못했습니다.';
+  const groupHtml = groups.map((g) => `
+    <div class="panel-section">
+      <div class="panel-section__title">${escapeHtml(g.label)}</div>
+      <div style="display:grid; gap:8px">
+        ${(g.items ?? []).slice(0, 6).map((it) => `
+          <a class="card post-card" href="${escapeHtml(it.url)}" target="_blank" rel="noopener" style="text-decoration:none">
+            <div class="post-card__meta"><span class="chip">${escapeHtml(g.label)}</span><span>${escapeHtml(it.date)}</span></div>
+            <h3>${escapeHtml(it.title)}</h3>
+            <span class="muted" style="font-size:0.75rem">공식 페이지에서 보기 ↗</span>
+          </a>`).join('') || '<p class="muted">표시할 소식을 가져오지 못했습니다.</p>'}
+      </div>
+      <a class="btn btn--ghost btn--sm" href="${escapeHtml(g.sourceUrl)}" target="_blank" rel="noopener">공식 ${escapeHtml(g.label)} 목록 ↗</a>
+    </div>`).join('');
   return `
     <div class="panel-section">
-      <div class="panel-section__title">공식 소식 — 순복음소식</div>
-      <p class="muted">여의도순복음교회 공식 FGTV/순복음소식에서 제공되는 최신 소식입니다. 본문을 재배포하지 않고 공식 페이지로 연결합니다.</p>
-      <a class="btn btn--ghost btn--sm" href="${escapeHtml(data.sourceUrl)}" target="_blank" rel="noopener">공식 페이지 바로가기 ↗</a>
+      <p class="muted">신도교회 공식 홈페이지의 공지사항과 주보입니다. 본문은 재배포하지 않고 공식 페이지로 연결합니다.</p>
     </div>
-    <div id="newsList" style="display:grid; gap:10px">
-      ${items.slice(0, 12).map((it) => `
-        <div class="card post-card">
-          <div class="post-card__meta"><span class="chip">소식</span><span>${escapeHtml(it.date)}</span></div>
-          <h3>${escapeHtml(it.title)}</h3>
-          <a class="btn btn--ghost btn--sm" href="${escapeHtml(it.url)}" target="_blank" rel="noopener">영상 보기 ↗</a>
-        </div>`).join('') || '<p class="muted">표시할 소식을 가져오지 못했습니다. 공식 페이지를 확인해 주세요.</p>'}
-    </div>
+    ${groupHtml}
     <p class="muted" style="font-size:0.72rem">${escapeHtml(fetchNote)}</p>`;
 }
 function bindNews() {}
@@ -34,7 +38,7 @@ export const PANEL_TITLES = {
   prayer: '🕯️ 기도의 자리',
   community: '💬 나눔과 간증',
   info: 'ℹ️ 교회 안내',
-  news: '📋 공식 소식',
+  news: '📋 신도교회 소식',
 };
 
 export function escapeHtml(s) {
@@ -70,23 +74,46 @@ async function worshipHtml() {
   return `
     <div class="panel-section">
       <div class="worship-frame">
-        <iframe src="${escapeHtml(official.youtubeLiveEmbed)}"
-                title="여의도순복음교회 실시간 예배"
+        <iframe id="worshipFrame" src="${escapeHtml(official.youtubeUploadsEmbed)}"
+                title="신도교회 예배 영상"
                 allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
                 allowfullscreen loading="lazy"></iframe>
       </div>
-      <p class="muted">공식 「동시화상예배 LIVE」 재생목록을 임베드합니다. 예배 중에는 생방송이, 그 외에는 최근 예배 영상이 재생됩니다.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
+        <button class="btn btn--gold btn--sm worship-tab active" data-embed="${escapeHtml(official.youtubeUploadsEmbed)}" aria-pressed="true">최근 예배 영상</button>
+        <button class="btn btn--ghost btn--sm worship-tab" data-embed="${escapeHtml(official.youtubeLiveEmbed)}" aria-pressed="false">🔴 실시간 생중계</button>
+      </div>
+      <p class="muted" style="margin-top:8px">신도교회 공식 YouTube 채널의 최근 업로드 영상입니다. 생중계는 방송 중에만 볼 수 있으며, 위 버튼으로 전환해 주세요. 영상이 표시되지 않거나 임베드가 제한되면 공식 채널에서 확인하세요.</p>
       <a class="btn btn--ghost btn--sm" href="${escapeHtml(official.youtube)}" target="_blank" rel="noopener">YouTube 채널 바로가기 ↗</a>
     </div>
     <div class="panel-section">
       <div class="panel-section__title">예배 안내 (공식 편성 요약)</div>
       <ul class="schedule-list">
-        ${worship.map((w) => `<li><span>${escapeHtml(w.name)}</span><span>${escapeHtml(w.time)}</span></li>`).join('')}
+        ${worship.map((w) => `<li><span>${escapeHtml(w.name)}${w.place ? `<small class="muted"> · ${escapeHtml(w.place)}</small>` : ''}</span><span>${escapeHtml(w.time)}</span></li>`).join('')}
       </ul>
-      <p class="muted">장소: 대성전 · 주보·헌금·새가족 안내는 <a href="${escapeHtml(official.site)}" target="_blank" rel="noopener">공식 홈페이지</a> 참조. 편성은 변경될 수 있습니다.</p>
+      <p class="muted">주보·헌금·새가족 안내는 <a href="${escapeHtml(official.site)}" target="_blank" rel="noopener">공식 홈페이지</a> 참조. 편성은 변경될 수 있습니다.</p>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">
+        <a class="btn btn--ghost btn--sm" href="${escapeHtml(official.worshipUrl)}" target="_blank" rel="noopener">공식 예배 안내 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="${escapeHtml(official.noticeUrl)}" target="_blank" rel="noopener">공지사항 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="${escapeHtml(official.bulletinUrl)}" target="_blank" rel="noopener">주보 ↗</a>
+      </div>
     </div>`;
 }
-function bindWorship() {}
+function bindWorship(root) {
+  const frame = root.querySelector('#worshipFrame');
+  root.querySelectorAll('.worship-tab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (!frame) return;
+      frame.src = btn.dataset.embed;
+      root.querySelectorAll('.worship-tab').forEach((b) => {
+        b.classList.toggle('active', b === btn);
+        b.classList.toggle('btn--gold', b === btn);
+        b.classList.toggle('btn--ghost', b !== btn);
+        b.setAttribute('aria-pressed', String(b === btn));
+      });
+    });
+  });
+}
 
 /* =========================================================
    말씀 묵상
@@ -295,28 +322,30 @@ function bindCommunity(root, ctx) {
 function infoHtml() {
   return `
     <div class="panel-section">
-      <div class="panel-section__title">여의도순복음교회</div>
+      <div class="panel-section__title">신도교회</div>
       <div class="card card--gold">
-        <p class="muted" style="color:#e9cd8a; font-weight:700; margin-bottom:6px">신령과 진정으로 예배하라 — 요한복음 4:23</p>
-        <p class="muted">1958년 조용기 목사가 시작한 순복음 신앙운동의 중심 성전으로, 오중복음(중생·성령충만·신적치유·축복·재림)과 삼중축복(영혼·육신·환경)을 선포해 온 공동체입니다.</p>
+        <p class="muted" style="color:#e9cd8a; font-weight:700; margin-bottom:6px">신도교회는 우리동네교회입니다.</p>
+        <p class="muted">대한예수교 장로회 통합 측 교회로, 1967년 신도림에서 개척되어 1990년 현재 위치(구로구 구일로2길 45)에 예배당을 세웠습니다. 복음 전파와 사회 봉사의 균형, 큰 예배와 작은 목장의 조화를 추구합니다.</p>
       </div>
       <div class="card">
         <div class="panel-section__title" style="margin-bottom:8px">오시는 길</div>
-        <p class="muted">서울특별시 영등포구 국회대로 76길 15 (여의도동 11번지)<br />대표전화 02-6181-9191<br />지하철 5호선 여의도역 / 9호선 국회의사당역 인근</p>
+        <p class="muted">서울특별시 구로구 구일로2길 45 (구로동)<br />대표전화 02-869-6747 · 02-869-6748 · 02-868-9191<br />구일우성 아파트 정문 앞</p>
       </div>
     </div>
     <div class="panel-section">
       <div class="panel-section__title">공식 채널</div>
       <div style="display:flex; gap:8px; flex-wrap:wrap">
-        <a class="btn btn--ghost btn--sm" href="https://yfgc.fgtv.com" target="_blank" rel="noopener">공식 홈페이지 ↗</a>
-        <a class="btn btn--ghost btn--sm" href="https://www.youtube.com/@YFGCFGTV" target="_blank" rel="noopener">YouTube ↗</a>
-        <a class="btn btn--ghost btn--sm" href="https://yfgc.fgtv.com/y2/02.asp" target="_blank" rel="noopener">예배 안내 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org" target="_blank" rel="noopener">공식 홈페이지 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="https://www.youtube.com/channel/UC7Ko6OUkjH0gThOqEBFRCNA" target="_blank" rel="noopener">YouTube ↗</a>
+        <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org/main/a03" target="_blank" rel="noopener">예배 안내 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org/main/e0101/board" target="_blank" rel="noopener">공지사항 ↗</a>
+        <a class="btn btn--ghost btn--sm" href="https://www.shindoch.org/main/e04/board" target="_blank" rel="noopener">주보 ↗</a>
       </div>
     </div>
     <div class="panel-section">
       <div class="panel-section__title">이 공간에 대하여</div>
-      <p class="muted">빛의 성전은 여의도순복음교회를 <strong>테마</strong>로 삼은 <strong>비공식</strong> 힐링·묵상 프로젝트입니다. 교회 공식 로고·건물 외관을 그대로 복제하지 않았으며, 특정 교파의 교리를 대변하지 않습니다.</p>
-      <p class="muted">예배 편성·주보·헌금·새가족 등록 등 모든 공식 정보는 반드시 <a href="https://yfgc.fgtv.com" target="_blank" rel="noopener">교회 공식 홈페이지</a>에서 확인하세요. 기도 제목과 나눔은 이 공간 안에서만 저장되며, 개인정보는 수집하지 않습니다.</p>
+      <p class="muted">이 공간은 신도교회를 <strong>테마</strong>로 삼은 <strong>비공식</strong> 힐링·묵상 프로젝트입니다. 교회 공식 로고·건물 외관을 그대로 복제하지 않았으며, 교회의 공식 입장을 대변하지 않습니다.</p>
+      <p class="muted">예배 편성·주보·헌금·새가족 등록 등 모든 공식 정보는 반드시 <a href="https://www.shindoch.org" target="_blank" rel="noopener">교회 공식 홈페이지</a>에서 확인하세요. 이 앱에 올린 닉네임·기도 제목·나눔 글은 서버에 저장되어 다른 이용자에게 공개되며, 교회에 제출되지 않습니다. 개인 식별정보는 적지 마세요.</p>
     </div>`;
 }
 function bindInfo() {}
