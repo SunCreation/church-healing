@@ -35,6 +35,11 @@ class MonitorTest(unittest.TestCase):
         with self.assertRaises(AssertionError):
             monitor.movement_result({'x': 0, 'z': 0}, [], [])
 
+    def test_one_slow_ci_frame_uses_pre_turn_baseline(self):
+        result = monitor.movement_result({'x': 0, 'z': 0},
+            [{'x': 1, 'z': 0, 'moving': True}], [{'rot': 3.14}, {'rot': 3.26}])
+        self.assertGreater(result['turned_radians'], 0.05)
+
 
 if __name__ == '__main__':
     unittest.main()

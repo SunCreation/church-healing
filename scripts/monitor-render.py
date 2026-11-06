@@ -97,11 +97,17 @@ def monitor(target, output):
             page.wait_for_timeout(600)
             page.keyboard.up('ArrowDown')
             first_turn = len(positions)
+            turn_baseline = positions[-1]
+            heading_before = page.inner_text('#headingText')
             page.keyboard.down('ArrowLeft')
-            page.wait_for_timeout(400)
-            page.keyboard.up('ArrowLeft')
-            page.wait_for_timeout(150)
-            turn = positions[first_turn:]
+            try:
+                page.wait_for_timeout(400)
+                # Software rendering on CI may produce very few frames.
+                expect(page.locator('#headingText')).not_to_have_text(heading_before, timeout=10_000)
+            finally:
+                page.keyboard.up('ArrowLeft')
+            page.wait_for_timeout(250)
+            turn = [turn_baseline] + positions[first_turn:]
             page.keyboard.down('ArrowRight')
             page.wait_for_timeout(400)
             page.keyboard.up('ArrowRight')
@@ -127,6 +133,8 @@ def monitor(target, output):
         except Exception as error:
             report['error'] = str(error)
             report['page_errors'] = errors
+            report['websocket_updates'] = len(positions)
+            report['recent_bot_positions'] = positions[-5:]
             try:
                 page.screenshot(path=str(output / 'failure.png'))
             except Exception:
