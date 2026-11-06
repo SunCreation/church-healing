@@ -1,0 +1,2 @@
+# Match the Playwright container version in render-keepalive.yml.
+playwright==1.58.0

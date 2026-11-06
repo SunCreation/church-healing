@@ -6,7 +6,7 @@ const { tmpdir } = require('node:os');
 const { spawnSync } = require('node:child_process');
 
 const workflow = readFileSync(join(__dirname, '../.github/workflows/render-keepalive.yml'), 'utf8');
-const script = workflow.split('        run: |\n')[1].split('\n').map((line) => line.replace(/^          /, '')).join('\n');
+const script = readFileSync(join(__dirname, '../scripts/check-render-health.sh'), 'utf8');
 
 function run(t, url, body, curlStatus = 0) {
   const dir = mkdtempSync(join(tmpdir(), 'church-keepalive-'));
@@ -31,11 +31,20 @@ exit "$MOCK_CURL_STATUS"
 }
 
 test('keepalive를 5분 간격·수동 실행·제한 시간·최소 권한으로 설정한다', () => {
-  assert.match(workflow, /cron: '2-57\/5 \* \* \* \*'/);
+  assert.match(workflow, /cron: '\*\/5 \* \* \* \*'/);
   assert.match(workflow, /workflow_dispatch:/);
-  assert.match(workflow, /permissions: \{\}/);
-  assert.match(workflow, /timeout-minutes: 4/);
+  assert.match(workflow, /contents: read/);
+  assert.match(workflow, /persist-credentials: false/);
+  assert.match(workflow, /timeout-minutes: 6/);
+  assert.match(workflow, /run: bash scripts\/check-render-health.sh/);
+  assert.match(workflow, /run: python3 scripts\/monitor-render.py/);
+  assert.match(workflow, /retention-days: 1/);
   assert.equal(spawnSync('bash', ['-n'], { input: script }).status, 0);
+});
+
+test('브라우저 검사 대상 주소·이동 검증 단위 테스트', () => {
+  const result = spawnSync('python3', [join(__dirname, 'test_browser_monitor.py')], { encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr);
 });
 
 test('주소 미설정 또는 HTTP 주소는 요청 전에 실패한다', (t) => {

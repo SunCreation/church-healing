@@ -45,7 +45,7 @@ git push -u origin main
 
 ### 5. GitHub Actions로 5분 간격 상태 확인 (선택)
 
-`.github/workflows/render-keepalive.yml`이 매 5분(UTC 기준 매시 2·7·12·…·57분)에 `/api/health`를 호출합니다. Render API 키나 DB 비밀번호는 필요하지 않습니다.
+`.github/workflows/render-keepalive.yml`이 `*/5 * * * *`(UTC 기준 5분 간격)으로 상태 요청과 실제 Chromium 브라우저 검사를 예약합니다. Render API 키나 DB 비밀번호는 필요하지 않습니다. **이는 실행 간격 설정이지 정시 실행 보장이 아닙니다.**
 
 1. GitHub 저장소 → **Settings → Secrets and variables → Actions → Variables** → **New repository variable**
 2. 이름: `RENDER_HEALTH_URL`
@@ -63,10 +63,26 @@ gh workflow run render-keepalive.yml --repo SunCreation/church-healing
 ```
 
 - URL 미설정 시 예약 작업은 건너뛰고, 수동 실행은 설정 오류를 표시합니다.
-- HTTPS 요청 및 JSON의 `ok: true`를 검사합니다. 기동 중이거나 HTTP 오류이면 최대 3회 요청(회당 최대 60초, 재시도 간격 5초)하고, 전체 작업은 최대 4분으로 제한합니다.
+- `scripts/check-render-health.sh`로 HTTPS 응답과 JSON의 `ok: true`를 검사합니다. 기동 중이거나 HTTP 오류이면 최대 3회 요청(회당 최대 60초, 재시도 간격 5초)합니다.
+- 이어서 `scripts/monitor-render.py`가 실제 사이트에 접속해 **상태점검봇으로 입장 → WebGL·WebSocket 확인 → 짧은 전진/후진·좌우 회전 → 말씀 패널·소식 게시판의 공지/주보 탭 → 종료**를 검사합니다. 봇은 다른 이용자에게 잠깐 보일 수 있습니다.
+- 글·기도·댓글·촛불 생성 및 공감·좌석 점유는 하지 않습니다. 변경 HTTP 요청을 차단하고 WebSocket은 입장/위치 전송만 허용되었는지 확인합니다. 종료 시 브라우저 연결을 닫습니다.
+- 브라우저 포함 Playwright 컨테이너를 사용하며 브라우저 검사는 최대 2분, 전체 작업은 최대 6분입니다. 성공 시 Actions Summary에 검사 결과가 남고, 실패 시 보고서와 가능한 경우 스크린샷을 아티팩트로 1일 보관합니다.
 - GitHub 예약 작업은 지연·누락될 수 있으므로 **정확한 5분 실행이나 무슬립을 보장하지 않습니다.** 공개 저장소에서 60일간 활동이 없으면 예약 작업이 비활성화될 수 있습니다.
+- 공개 저장소의 표준 러너는 무료이지만, 이것이 예약 시각 보장을 의미하지는 않습니다. 2026-11-06 조회한 실제 예약 기록에는 약 4~8시간의 실행 공백이 있었습니다. 원인을 무료 횟수 제한으로 단정하지 않습니다.
+- 유휴 슬립 방지에는 정상 HTTP 요청 자체로 충분합니다. 브라우저 검사는 실제 기능 확인을 강화하는 것이며 **예약 작업이 실행되지 않는 공백을 해결하지는 않습니다.** 지속적인 가용성이 필요하면 별도 주기 모니터링 또는 유휴 슬립 없는 컴퓨트를 사용하세요.
 - Render가 계속 실행되면 월 750시간의 무료 인스턴스 시간을 사용합니다. 같은 워크스페이스의 다른 무료 서비스와 합산되므로 한도를 확인하세요.
+- 브라우저 검사는 단순 health 요청보다 러너 사용량·트래픽·DB 활성 시간을 늘립니다. 공개 저장소의 러너 무료 조건과 아티팩트 저장 용량 한도는 별개입니다.
 - 중단하려면 Actions의 해당 워크플로를 **Disable workflow** 하거나 `RENDER_HEALTH_URL` 변수를 삭제합니다.
+
+로컬에서 같은 브라우저 검사를 실행하려면(Python 가상환경 권장):
+
+```bash
+python3 -m pip install -r scripts/monitor-requirements.txt
+python3 -m playwright install chromium
+RENDER_HEALTH_URL=https://shindo-church.onrender.com/api/health python3 scripts/monitor-render.py
+```
+
+설치된 Google Chrome을 사용하려면 `BROWSER_CHANNEL=chrome`을 추가합니다. 로컬 서버 검사는 `--base-url http://localhost:8787/`로 실행합니다. 보고서는 git에서 제외되는 `artifacts/render-browser/`에 저장됩니다.
 
 ## 보안 체크리스트 (현재 상태)
 - [x] `.env.local` git 배제, 코드에 비밀 없음
